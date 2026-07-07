@@ -1,7 +1,7 @@
 ---
 name: asus-display-control
 description: Control ASUS monitor settings via DWC CLI, including query, set, reset, raw VCP commands, and capabilities lookup
-version: 1.0.0
+version: 1.0.1
 language: en
 ---
 
@@ -85,12 +85,11 @@ Runtime rules:
 
 ## 4) Safety and Guardrails
 
-- Reset commands are destructive. Ask for confirmation before running.
+- `reset-all`, `reset-color`, and `reset-mode` are destructive. State the impact and ask for confirmation before running.
 - Raw VCP commands (`setvcp`) are low-level. Prefer high-level properties when available.
-- If `No monitors detected` appears, stop and suggest:
-  - Check whether DDC/CI is enabled
-  - Check cable and power status
-  - Run with administrator privileges
+- Some settings may be unavailable depending on the active input, display mode, model family, or firmware.
+- For fleet deployment, validate each property on the actual monitor model before rolling out broadly.
+- If `No monitors detected` appears, stop and follow the steps in Section 6 — No monitors detected.
 - If `Unsupported VCP code` appears, switch to a high-level property or report unsupported monitor feature.
 - If a property name is uncertain, run `dwc.exe help` / `dwc.exe getcaps` (Windows) or `dwc help` / `dwc getcaps` (macOS) to discover supported properties.
 
@@ -104,3 +103,23 @@ After each execution, report in concise format:
 - Change summary: for example `Brightness 70 -> 80`
 
 For multi-step tasks, list planned commands first, then report results step by step.
+
+## 6) Troubleshooting
+
+### No monitors detected
+
+If the CLI returns no monitors:
+
+1. Confirm the monitor is powered on and connected.
+2. Enable DDC/CI in the monitor OSD menu.
+3. Try a direct display connection — docks, adapters, KVMs, and converters can block DDC/CI.
+4. Open a new terminal if the CLI was recently installed into `PATH`.
+5. Run the terminal as administrator.
+
+### Property command fails
+
+If `get` or `set` returns an error or unexpected result:
+
+1. Run `dwc.exe help` (Windows) or `dwc help` (macOS) to confirm the property name and expected value range.
+2. Run `dwc.exe getcaps --id <id>` (Windows) or `dwc getcaps --id <id>` (macOS) to inspect raw monitor capabilities.
+3. Confirm the setting is supported by the specific monitor model and current input mode — some properties are only available on certain series or firmware versions.
