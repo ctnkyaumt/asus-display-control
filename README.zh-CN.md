@@ -42,8 +42,8 @@ ASUS Display Control 提供查询和配置 ASUS 显示器设置的工具。
 
 | 平台 | 下载 | 可执行文件 |
 | --- | --- | --- |
-| Windows | [dwc.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc.zip) | `dwc.exe` |
-| macOS | 即将推出 | `dwc` |
+| Windows | [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip) | `dwc.exe` |
+| macOS | [dwc_mac.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/macOS/dwc_mac.zip) | `dwc` |
 
 ### CLI 安装
 
@@ -53,7 +53,7 @@ ASUS Display Control 提供查询和配置 ASUS 显示器设置的工具。
 | 平台 | 脚本 | 更新项目 |
 | --- | --- | --- |
 | Windows | `install.bat` | Windows 环境变量中的 `PATH` |
-| macOS | `install.sh`（即将推出） | Shell 配置文件中的 `PATH` |
+| macOS | `install.sh` | Shell 配置文件中的 `PATH` |
 
 **注意**：安装后请勿移动或删除该文件夹——若文件夹被移动或删除，CLI 将无法正常运行。
 

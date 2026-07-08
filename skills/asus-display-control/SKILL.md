@@ -19,13 +19,13 @@ In the examples below, substitute the correct binary name for the current platfo
 Before using this skill, the CLI binary must be installed and accessible in the system `PATH`.
 
 **Windows:**
-1. Download the latest CLI: [dwc.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc.zip)
+1. Download the latest CLI: [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip)
 2. Unzip and run `install.bat` to add `dwc.exe` to the system `PATH`.
 3. Open a new terminal and verify: `dwc.exe help`
 
 **macOS:**
-1. Download the latest CLI for macOS and place `dwc` in a directory on your `PATH` (e.g. `/usr/local/bin`).
-2. Make it executable: `chmod +x /usr/local/bin/dwc`
+1. Download the latest CLI: [dwc_mac.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/macOS/dwc_mac.zip)
+2. Unzip and run `install.sh` to add `dwc` to the system `PATH`.
 3. Open a new terminal and verify: `dwc help`
 
 If the binary is not found in `PATH`, stop and instruct the user to install it before proceeding.

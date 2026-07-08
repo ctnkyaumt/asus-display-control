@@ -42,8 +42,8 @@ ASUS Display Control CLI를 사용하여 원격 IT 관리와 기업 워크스테
 
 | 플랫폼 | 다운로드 | 실행 파일 |
 | --- | --- | --- |
-| Windows | [dwc.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc.zip) | `dwc.exe` |
-| macOS | 출시 예정 | `dwc` |
+| Windows | [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip) | `dwc.exe` |
+| macOS | [dwc_mac.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/macOS/dwc_mac.zip) | `dwc` |
 
 ### CLI 설치
 
@@ -53,7 +53,7 @@ ASUS Display Control CLI를 사용하여 원격 IT 관리와 기업 워크스테
 | 플랫폼 | 스크립트 | 업데이트 항목 |
 | --- | --- | --- |
 | Windows | `install.bat` | Windows 환경 변수의 `PATH` |
-| macOS | `install.sh` (출시 예정) | 셸 프로필의 `PATH` |
+| macOS | `install.sh` | 셸 프로필의 `PATH` |
 
 **참고**: 설치 후 폴더를 이동하거나 삭제하지 마십시오 — 폴더가 이동되거나 삭제되면 CLI가 작동하지 않습니다.
 

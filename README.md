@@ -42,8 +42,8 @@ Use ASUS Display Control CLI for remote IT management and standardized monitor c
 
 | Platform | Download | Executable |
 | --- | --- | --- |
-| Windows | [dwc.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc.zip) | `dwc.exe` |
-| macOS | Coming soon | `dwc` |
+| Windows | [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip) | `dwc.exe` |
+| macOS | [dwc_mac.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/macOS/dwc_mac.zip) | `dwc` |
 
 ### CLI Installation
 
@@ -53,7 +53,7 @@ The install scripts are included in the unzipped folder.
 | Platform | Script | Updates |
 | --- | --- | --- |
 | Windows | `install.bat` | `PATH` in Windows Environment Variables |
-| macOS | `install.sh` (coming soon) | `PATH` in shell profile |
+| macOS | `install.sh` | `PATH` in shell profile |
 
 **Note**: Do not move or delete the folder after installation — the CLI will stop working if the folder is moved or removed.
 
