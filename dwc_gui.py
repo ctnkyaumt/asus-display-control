@@ -172,7 +172,7 @@ class ToggleSwitch(tk.Canvas):
 # ==============================================================================
 class PresetCard(tk.Frame):
     def __init__(self, parent, text, icon, value, command=None, bg=BG_CARD, active_bg=COLOR_ACCENT, hover_bg=BG_CARD_HOVER, **kwargs):
-        super().__init__(parent, bg=bg, bd=0, padx=6, pady=8, **kwargs)
+        super().__init__(parent, bg=bg, bd=0, padx=2, pady=4, **kwargs)
         self.text = text
         self.icon = icon
         self.value = value
@@ -182,10 +182,10 @@ class PresetCard(tk.Frame):
         self.hover_bg = hover_bg
         self.is_active = False
         
-        self.icon_label = tk.Label(self, text=icon, font=("Segoe UI", 18), bg=bg, fg="#ffffff")
-        self.icon_label.pack(side="top", pady=(0, 2))
+        self.icon_label = tk.Label(self, text=icon, font=("Segoe UI", 14), bg=bg, fg="#ffffff")
+        self.icon_label.pack(side="top", pady=(0, 1))
         
-        self.text_label = tk.Label(self, text=text, font=("Segoe UI", 9, "bold"), bg=bg, fg="#ffffff")
+        self.text_label = tk.Label(self, text=text, font=("Segoe UI", 8, "bold"), bg=bg, fg="#ffffff")
         self.text_label.pack(side="top")
         
         for w in (self, self.icon_label, self.text_label):
@@ -223,9 +223,10 @@ class ASUSDisplayControlGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("ASUS Display Control Panel")
-        self.root.geometry("920x620")
+        self.root.geometry("1100x680")
         self.root.configure(bg=BG_MAIN)
-        self.root.resizable(False, False)
+        self.root.resizable(True, True)
+        self.root.minsize(1000, 640)
         
         self.dwc_path = self.find_dwc_cli()
         self.monitors = []
@@ -323,29 +324,29 @@ class ASUSDisplayControlGUI:
             fg_color = "#ffffff" if active else COLOR_TEXT_MUTED
             cursor_type = "hand2" if active else "arrow"
             
-            lbl = tk.Label(sidebar, text=f"  {name}", font=FONT_LABEL, bg=bg_color, fg=fg_color, anchor="w", pady=8, cursor=cursor_type)
-            lbl.pack(fill="x", padx=10, pady=2)
+            lbl = tk.Label(sidebar, text=f"  {name}", font=FONT_LABEL, bg=bg_color, fg=fg_color, anchor="w", pady=3, cursor=cursor_type)
+            lbl.pack(fill="x", padx=10, pady=1)
             
         # Status box at bottom
         self.status_lbl = tk.Label(sidebar, text="Initializing...", font=FONT_MUTED, bg=BG_SIDEBAR, fg=COLOR_TEXT_MUTED, wraplength=180, justify="left")
-        self.status_lbl.pack(side="bottom", fill="x", padx=15, pady=20)
+        self.status_lbl.pack(side="bottom", fill="x", padx=15, pady=10)
         
         # ----------------------------------------------------------------------
         # MAIN PANEL
         # ----------------------------------------------------------------------
-        self.main_panel = tk.Frame(self.root, bg=BG_MAIN, padx=25, pady=20)
+        self.main_panel = tk.Frame(self.root, bg=BG_MAIN, padx=15, pady=15)
         self.main_panel.grid(row=0, column=1, sticky="nsew")
         
         # Header Area
         header_frame = tk.Frame(self.main_panel, bg=BG_MAIN)
-        header_frame.pack(fill="x", pady=(0, 15))
+        header_frame.pack(fill="x", pady=(0, 10))
         
         self.preset_title_lbl = tk.Label(header_frame, text="Splendid Presets", font=FONT_TITLE, bg=BG_MAIN, fg=COLOR_TEXT_PRIMARY)
         self.preset_title_lbl.pack(side="left")
         
         # Preset Buttons Row
         self.preset_frame = tk.Frame(self.main_panel, bg=BG_MAIN)
-        self.preset_frame.pack(fill="x", pady=(0, 15))
+        self.preset_frame.pack(fill="x", pady=(0, 10))
         
         self.presets = [
             ("Standard", "🖥️", 4),
@@ -361,7 +362,7 @@ class ASUSDisplayControlGUI:
         self.preset_cards = {}
         for name, icon, val in self.presets:
             card = PresetCard(self.preset_frame, name, icon, val, command=self.set_preset_thread)
-            card.pack(side="left", fill="both", expand=True, padx=4)
+            card.pack(side="left", fill="both", expand=True, padx=2)
             self.preset_cards[val] = card
             
         # Control Columns Wrapper
