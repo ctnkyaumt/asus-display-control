@@ -182,11 +182,11 @@ class PresetCard(tk.Frame):
         self.hover_bg = hover_bg
         self.is_active = False
         
-        self.icon_label = tk.Label(self, text=icon, font=("Segoe UI", 14), bg=bg, fg="#ffffff")
-        self.icon_label.pack(side="top", pady=(0, 1))
+        self.icon_label = tk.Label(self, text=icon, font=("Segoe UI", 14), bg=bg, fg="#ffffff", anchor="center")
+        self.icon_label.pack(side="top", fill="x", pady=(0, 1))
         
-        self.text_label = tk.Label(self, text=text, font=("Segoe UI", 8, "bold"), bg=bg, fg="#ffffff")
-        self.text_label.pack(side="top")
+        self.text_label = tk.Label(self, text=text, font=("Segoe UI", 8, "bold"), bg=bg, fg="#ffffff", anchor="center")
+        self.text_label.pack(side="top", fill="x")
         
         for w in (self, self.icon_label, self.text_label):
             w.bind("<Button-1>", self.on_click)
@@ -233,6 +233,7 @@ class ASUSDisplayControlGUI:
         self.selected_monitor_id = None
         self.current_settings = {}
         self.previous_settings = {}
+        self.preset_memory = {}
         self.is_comparing = False
         self.is_syncing = False
         
@@ -578,9 +579,23 @@ class ASUSDisplayControlGUI:
                 if prop not in settings:
                     settings[prop] = None
                     
+        preset_changed = False
+        old_preset = self.current_settings.get("Splendid")
+        new_preset = settings.get("Splendid")
+        if old_preset is not None and new_preset is not None and old_preset != new_preset:
+            preset_changed = True
+            
         self.current_settings = settings.copy()
-        if not self.previous_settings:
+        if not self.previous_settings or preset_changed:
             self.previous_settings = settings.copy()
+            
+        # Initialize memory with baseline values if not already present
+        if new_preset is not None:
+            if new_preset not in self.preset_memory:
+                self.preset_memory[new_preset] = {}
+                for prop, val in settings.items():
+                    if val is not None and prop != "Splendid":
+                        self.preset_memory[new_preset][prop] = val
             
         self.root.after(0, self.update_ui_state)
 
@@ -666,8 +681,19 @@ class ASUSDisplayControlGUI:
     def set_preset(self, val):
         try:
             self.run_dwc(["set", "Splendid", str(val), "--id", self.selected_monitor_id])
-            # Sleep slightly to allow monitor to transition before reading new presets
+            # Sleep slightly to allow monitor to transition before reading/writing settings
             time.sleep(1.0)
+            
+            # Apply saved memory settings for this preset if they exist
+            if val in self.preset_memory:
+                for prop, saved_val in self.preset_memory[val].items():
+                    if saved_val is not None:
+                        try:
+                            self.run_dwc(["set", prop, str(saved_val), "--id", self.selected_monitor_id])
+                            time.sleep(0.05)
+                        except Exception:
+                            pass
+            
             self.query_settings()
         except Exception as e:
             self.root.after(0, lambda: self.set_status(f"Error: {str(e)}"))
@@ -680,6 +706,14 @@ class ASUSDisplayControlGUI:
         if self.is_syncing: return
         self.previous_settings = self.current_settings.copy()
         self.current_settings[prop_name] = val
+        
+        # Save to preset memory
+        current_preset = self.current_settings.get("Splendid")
+        if current_preset is not None:
+            if current_preset not in self.preset_memory:
+                self.preset_memory[current_preset] = {}
+            self.preset_memory[current_preset][prop_name] = val
+            
         self.set_status(f"Updating {prop_name} to {val}...")
         threading.Thread(target=self.set_vcp_value, args=(prop_name, val), daemon=True).start()
 
@@ -712,6 +746,10 @@ class ASUSDisplayControlGUI:
 
     def reset_preset(self):
         try:
+            current_preset = self.current_settings.get("Splendid")
+            if current_preset is not None and current_preset in self.preset_memory:
+                del self.preset_memory[current_preset]
+                
             self.run_dwc(["reset-all", "--id", self.selected_monitor_id])
             time.sleep(2.0) # Wait for display reset cycle
             self.query_settings()
@@ -846,15 +884,46 @@ class ASUSDisplayControlGUI:
             self.is_syncing = True
             self.set_status("Applying imported profile...")
             
-            # If preset exists, set it first and sleep
-            if "Splendid" in imported and imported["Splendid"] is not None:
-                self.run_dwc(["set", "Splendid", str(imported["Splendid"]), "--id", self.selected_monitor_id])
-                time.sleep(1.0)
-                
-            threading.Thread(target=self.apply_full_settings, args=(imported,), daemon=True).start()
+            threading.Thread(target=self.apply_imported_profile, args=(imported,), daemon=True).start()
             
         except Exception as e:
             messagebox.showerror("Import Failed", f"Could not import profile: {str(e)}")
+            self.is_syncing = False
+
+    def apply_imported_profile(self, settings_dict):
+        try:
+            m_id = self.selected_monitor_id
+            
+            # If Splendid preset is specified, switch to it first
+            imported_preset = settings_dict.get("Splendid")
+            if imported_preset is not None:
+                try:
+                    self.run_dwc(["set", "Splendid", str(imported_preset), "--id", m_id])
+                    time.sleep(1.0)
+                except Exception:
+                    pass
+            
+            # Save all settings to preset memory for this preset
+            current_preset = imported_preset or self.current_settings.get("Splendid")
+            if current_preset is not None:
+                if current_preset not in self.preset_memory:
+                    self.preset_memory[current_preset] = {}
+                for prop, val in settings_dict.items():
+                    if val is not None and prop != "Splendid":
+                        self.preset_memory[current_preset][prop] = val
+                        
+            # Apply each individual setting
+            for prop, val in settings_dict.items():
+                if val is not None and prop != "Splendid":
+                    try:
+                        self.run_dwc(["set", prop, str(val), "--id", m_id])
+                        time.sleep(0.05)
+                    except Exception:
+                        pass
+                        
+            self.query_settings()
+        except Exception as e:
+            self.root.after(0, lambda: self.set_status(f"Error applying profile: {str(e)}"))
             self.is_syncing = False
 
 # ==============================================================================
