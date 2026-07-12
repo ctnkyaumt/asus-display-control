@@ -236,11 +236,30 @@ class ASUSDisplayControlGUI:
         self.preset_memory = {}
         self.current_preset = None
         self.previous_preset = None
+        self.presets_file = os.path.join(os.path.dirname(__file__), "dwc_presets.json")
+        self.load_presets_from_disk()
         self.is_comparing = False
         self.is_syncing = False
         
         self.build_ui()
         self.detect_monitors_thread()
+
+    def load_presets_from_disk(self):
+        self.preset_memory = {}
+        if os.path.exists(self.presets_file):
+            try:
+                with open(self.presets_file, "r") as f:
+                    data = json.load(f)
+                    self.preset_memory = {int(k): v for k, v in data.items()}
+            except Exception:
+                pass
+
+    def save_presets_to_disk(self):
+        try:
+            with open(self.presets_file, "w") as f:
+                json.dump(self.preset_memory, f, indent=4)
+        except Exception:
+            pass
 
     def find_dwc_cli(self):
         # 1. Search in PATH
@@ -694,34 +713,45 @@ class ASUSDisplayControlGUI:
         
         threading.Thread(target=self.set_preset, args=(val,), daemon=True).start()
 
+    def apply_preset_settings_parallel(self, val):
+        if val not in self.preset_memory: return
+        
+        # Priority 1: ColorTemp (write first)
+        if "ColorTemp" in self.preset_memory[val]:
+            try:
+                self.run_dwc(["set", "ColorTemp", str(self.preset_memory[val]["ColorTemp"]), "--id", self.selected_monitor_id])
+                time.sleep(0.05)
+            except Exception:
+                pass
+                
+        # Priority 2: Other properties and RGB Gains in parallel
+        parallel_settings = {}
+        for prop, saved_val in self.preset_memory[val].items():
+            if prop != "ColorTemp" and saved_val is not None:
+                parallel_settings[prop] = saved_val
+                
+        if parallel_settings:
+            threads = []
+            def write_one(p, v):
+                try:
+                    self.run_dwc(["set", p, str(v), "--id", self.selected_monitor_id])
+                except Exception:
+                    pass
+            for prop, saved_val in parallel_settings.items():
+                t = threading.Thread(target=write_one, args=(prop, saved_val))
+                t.start()
+                threads.append(t)
+            for t in threads:
+                t.join()
+
     def set_preset(self, val):
         try:
             self.run_dwc(["set", "Splendid", str(val), "--id", self.selected_monitor_id])
             # Sleep slightly to allow monitor to transition before reading/writing settings
             time.sleep(0.2)
             
-            # Apply saved memory settings in dependency order: ColorTemp first, RGB Gains last.
-            if val in self.preset_memory:
-                sorted_props = []
-                # 1. ColorTemp
-                if "ColorTemp" in self.preset_memory[val]:
-                    sorted_props.append(("ColorTemp", self.preset_memory[val]["ColorTemp"]))
-                # 2. Other non-gain properties
-                for prop, saved_val in self.preset_memory[val].items():
-                    if prop not in ["ColorTemp", "RedGain", "GreenGain", "BlueGain"]:
-                        sorted_props.append((prop, saved_val))
-                # 3. RGB Gains
-                for prop in ["RedGain", "GreenGain", "BlueGain"]:
-                    if prop in self.preset_memory[val]:
-                        sorted_props.append((prop, self.preset_memory[val][prop]))
-                        
-                for prop, saved_val in sorted_props:
-                    if saved_val is not None:
-                        try:
-                            self.run_dwc(["set", prop, str(saved_val), "--id", self.selected_monitor_id])
-                            time.sleep(0.05)
-                        except Exception:
-                            pass
+            # Apply saved memory settings in parallel
+            self.apply_preset_settings_parallel(val)
             
             self.query_settings()
         except Exception as e:
@@ -742,6 +772,7 @@ class ASUSDisplayControlGUI:
             if current_preset not in self.preset_memory:
                 self.preset_memory[current_preset] = {}
             self.preset_memory[current_preset][prop_name] = val
+            self.save_presets_to_disk()
             
         self.set_status(f"Updating {prop_name} to {val}...")
         threading.Thread(target=self.set_vcp_value, args=(prop_name, val), daemon=True).start()
@@ -778,6 +809,7 @@ class ASUSDisplayControlGUI:
             current_preset = self.current_settings.get("Splendid")
             if current_preset is not None and current_preset in self.preset_memory:
                 del self.preset_memory[current_preset]
+                self.save_presets_to_disk()
                 
             self.run_dwc(["reset-all", "--id", self.selected_monitor_id])
             time.sleep(2.0) # Wait for display reset cycle
@@ -824,28 +856,8 @@ class ASUSDisplayControlGUI:
             self.run_dwc(["set", "Splendid", str(val), "--id", self.selected_monitor_id])
             time.sleep(0.2)
             
-            # Apply saved memory settings in dependency order: ColorTemp first, RGB Gains last.
-            if val in self.preset_memory:
-                sorted_props = []
-                # 1. ColorTemp
-                if "ColorTemp" in self.preset_memory[val]:
-                    sorted_props.append(("ColorTemp", self.preset_memory[val]["ColorTemp"]))
-                # 2. Other non-gain properties
-                for prop, saved_val in self.preset_memory[val].items():
-                    if prop not in ["ColorTemp", "RedGain", "GreenGain", "BlueGain"]:
-                        sorted_props.append((prop, saved_val))
-                # 3. RGB Gains
-                for prop in ["RedGain", "GreenGain", "BlueGain"]:
-                    if prop in self.preset_memory[val]:
-                        sorted_props.append((prop, self.preset_memory[val][prop]))
-                        
-                for prop, saved_val in sorted_props:
-                    if saved_val is not None:
-                        try:
-                            self.run_dwc(["set", prop, str(saved_val), "--id", self.selected_monitor_id])
-                            time.sleep(0.05)
-                        except Exception:
-                            pass
+            # Apply saved memory settings in parallel
+            self.apply_preset_settings_parallel(val)
             
             # Read and temporarily update UI state
             preset_vals = self.current_settings.copy()
@@ -927,6 +939,7 @@ class ASUSDisplayControlGUI:
                 for prop, val in settings_dict.items():
                     if val is not None and prop != "Splendid":
                         self.preset_memory[current_preset][prop] = val
+                self.save_presets_to_disk()
                         
             # Apply each individual setting in dependency order: ColorTemp first, RGB Gains last.
             sorted_props = []
