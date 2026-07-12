@@ -4,38 +4,28 @@ This document describes the command syntax for the ASUS Display Control CLI.
 
 Version covered: `0.1.0`
 
-Run `dwc.exe --help` (Windows) or `dwc --help` (macOS) on the target machine before scripting or troubleshooting. The CLI help output is the authoritative source for the installed version, and supported properties can vary by monitor model.
+Run `dwc.exe --help` on the target machine before scripting or troubleshooting. The CLI help output is the authoritative source for the installed version, and supported properties can vary by monitor model.
 
 ## Installation
 
-Download and unzip the CLI for your platform.
+Download and unzip the CLI.
 
 | Platform | Download | Executable |
 | --- | --- | --- |
-| Windows | [dwc.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc.zip) | `dwc.exe` |
-| macOS | Coming soon | `dwc` |
+| Windows | [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip) | `dwc.exe` |
 
-The install scripts are included in the unzipped folder.
+The install script is included in the unzipped folder.
 
 | Platform | Script | Updates |
 | --- | --- | --- |
 | Windows | `install.bat` | `PATH` in Windows Environment Variables |
-| macOS | `install.sh` (coming soon) | `PATH` in shell profile |
 
 **Note**: Do not move or delete the folder after installation — the CLI will stop working if the folder is moved or removed.
 
 ## Usage
 
-### Windows
-
 ```powershell
 dwc.exe <command> [options]
-```
-
-### macOS
-
-```bash
-dwc <command> [options]
 ```
 
 ## Global Options

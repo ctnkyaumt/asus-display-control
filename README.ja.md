@@ -43,7 +43,6 @@ ASUS Display Control CLI を使用して、リモート IT 管理と企業ワー
 | プラットフォーム | ダウンロード | 実行ファイル |
 | --- | --- | --- |
 | Windows | [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip) | `dwc.exe` |
-| macOS | [dwc_mac.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/macOS/dwc_mac.zip) | `dwc` |
 
 ### CLI インストール
 
@@ -53,7 +52,6 @@ ASUS Display Control CLI を使用して、リモート IT 管理と企業ワー
 | プラットフォーム | スクリプト | 更新内容 |
 | --- | --- | --- |
 | Windows | `install.bat` | Windows 環境変数の `PATH` |
-| macOS | `install.sh` | シェルプロファイルの `PATH` |
 
 **注意**: インストール後はフォルダーを移動または削除しないでください — フォルダーが移動または削除されると CLI は動作しなくなります。
 
@@ -61,15 +59,15 @@ ASUS Display Control CLI を使用して、リモート IT 管理と企業ワー
 
 ### CLI コマンド
 
-**コマンドプロンプト**（Windows）または**ターミナル**（macOS）を開いて試してみてください：
+**コマンドプロンプト**（Windows）を開いて試してみてください：
 
-| Windows | macOS | 説明 |
-| --- | --- | --- |
-| `dwc.exe help` | `dwc help` | 利用可能なコマンドと構文を表示 |
-| `dwc.exe list` | `dwc list` | 接続中の ASUS モニターを一覧表示 |
-| `dwc.exe info` | `dwc info` | 接続中のモニターの詳細情報を表示 |
-| `dwc.exe get brightness` | `dwc get brightness` | 現在の輝度値を読み取る |
-| `dwc.exe set brightness 60` | `dwc set brightness 60` | 輝度を 60 に設定する |
+| コマンド | 説明 |
+| --- | --- |
+| `dwc.exe help` | 利用可能なコマンドと構文を表示 |
+| `dwc.exe list` | 接続中の ASUS モニターを一覧表示 |
+| `dwc.exe info` | 接続中のモニターの詳細情報を表示 |
+| `dwc.exe get brightness` | 現在の輝度値を読み取る |
+| `dwc.exe set brightness 60` | 輝度を 60 に設定する |
 
 コマンド構文、サポートされているプロパティ、および使用例については、[CLI_REFERENCE.md](CLI_REFERENCE.md) を参照してください。
 
@@ -94,7 +92,7 @@ Agent Skill は [skills/asus-display-control/SKILL.md](skills/asus-display-contr
 
 ## ⚙️ 必要環境
 
-- Windows 10/11、または macOS 12 以降。
+- Windows 10/11。
 - DDC/CI をサポートする ASUS モニター。
 - モニターの OSD メニューで DDC/CI が有効になっていること。
 - DisplayPort または HDMI など、DDC/CI を通過するディスプレイ接続。

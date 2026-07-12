@@ -43,7 +43,6 @@ ASUS Display Control CLI를 사용하여 원격 IT 관리와 기업 워크스테
 | 플랫폼 | 다운로드 | 실행 파일 |
 | --- | --- | --- |
 | Windows | [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip) | `dwc.exe` |
-| macOS | [dwc_mac.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/macOS/dwc_mac.zip) | `dwc` |
 
 ### CLI 설치
 
@@ -53,7 +52,6 @@ ASUS Display Control CLI를 사용하여 원격 IT 관리와 기업 워크스테
 | 플랫폼 | 스크립트 | 업데이트 항목 |
 | --- | --- | --- |
 | Windows | `install.bat` | Windows 환경 변수의 `PATH` |
-| macOS | `install.sh` | 셸 프로필의 `PATH` |
 
 **참고**: 설치 후 폴더를 이동하거나 삭제하지 마십시오 — 폴더가 이동되거나 삭제되면 CLI가 작동하지 않습니다.
 
@@ -61,15 +59,15 @@ ASUS Display Control CLI를 사용하여 원격 IT 관리와 기업 워크스테
 
 ### CLI 명령어
 
-**명령 프롬프트**(Windows) 또는 **터미널**(macOS)을 열고 시도해 보세요:
+**명령 프롬프트**(Windows)를 열고 시도해 보세요:
 
-| Windows | macOS | 설명 |
-| --- | --- | --- |
-| `dwc.exe help` | `dwc help` | 사용 가능한 명령어 및 구문 표시 |
-| `dwc.exe list` | `dwc list` | 연결된 ASUS 모니터 목록 표시 |
-| `dwc.exe info` | `dwc info` | 연결된 모니터의 상세 정보 표시 |
-| `dwc.exe get brightness` | `dwc get brightness` | 현재 밝기 값 읽기 |
-| `dwc.exe set brightness 60` | `dwc set brightness 60` | 밝기를 60으로 설정 |
+| 명령어 | 설명 |
+| --- | --- |
+| `dwc.exe help` | 사용 가능한 명령어 및 구문 표시 |
+| `dwc.exe list` | 연결된 ASUS 모니터 목록 표시 |
+| `dwc.exe info` | 연결된 모니터의 상세 정보 표시 |
+| `dwc.exe get brightness` | 현재 밝기 값 읽기 |
+| `dwc.exe set brightness 60` | 밝기를 60으로 설정 |
 
 명령어 구문, 지원되는 속성 및 예제는 [CLI_REFERENCE.md](CLI_REFERENCE.md)를 참조하십시오.
 
@@ -94,7 +92,7 @@ Agent Skill은 [skills/asus-display-control/SKILL.md](skills/asus-display-contro
 
 ## ⚙️ 요구 사항
 
-- Windows 10/11 또는 macOS 12 이상.
+- Windows 10/11.
 - DDC/CI를 지원하는 ASUS 모니터.
 - 모니터 OSD 메뉴에서 DDC/CI 활성화.
 - DisplayPort 또는 HDMI와 같이 DDC/CI를 지원하는 디스플레이 연결.

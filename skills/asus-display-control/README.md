@@ -22,7 +22,7 @@ The agent translates your request into the appropriate `dwc.exe` command, execut
 ## Prerequisites
 
 - `dwc.exe` must be installed and accessible in the system `PATH` on the machine where the agent runs.  
-  See the [CLI Quick Start](../../README.md#cli-quick-start) for installation instructions, or download [dwc.zip](../../cli/dwc.zip) directly.
+  See the [CLI Quick Start](../../README.md#cli-quick-start) for installation instructions, or download [dwc_win.zip](../../cli/windows/dwc_win.zip) directly.
 - DDC/CI must be enabled in the monitor OSD menu.
 - A compatible AI agent with shell command execution capability.
 

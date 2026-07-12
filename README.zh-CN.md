@@ -43,7 +43,6 @@ ASUS Display Control 提供查询和配置 ASUS 显示器设置的工具。
 | 平台 | 下载 | 可执行文件 |
 | --- | --- | --- |
 | Windows | [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip) | `dwc.exe` |
-| macOS | [dwc_mac.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/macOS/dwc_mac.zip) | `dwc` |
 
 ### CLI 安装
 
@@ -53,7 +52,6 @@ ASUS Display Control 提供查询和配置 ASUS 显示器设置的工具。
 | 平台 | 脚本 | 更新项目 |
 | --- | --- | --- |
 | Windows | `install.bat` | Windows 环境变量中的 `PATH` |
-| macOS | `install.sh` | Shell 配置文件中的 `PATH` |
 
 **注意**：安装后请勿移动或删除该文件夹——若文件夹被移动或删除，CLI 将无法正常运行。
 
@@ -61,15 +59,15 @@ ASUS Display Control 提供查询和配置 ASUS 显示器设置的工具。
 
 ### CLI 命令
 
-打开**命令提示符**（Windows）或**终端**（macOS）并尝试以下命令：
+打开**命令提示符**（Windows）并尝试以下命令：
 
-| Windows | macOS | 说明 |
-| --- | --- | --- |
-| `dwc.exe help` | `dwc help` | 显示可用命令和语法 |
-| `dwc.exe list` | `dwc list` | 列出所有已连接的 ASUS 显示器 |
-| `dwc.exe info` | `dwc info` | 显示已连接显示器的详细信息 |
-| `dwc.exe get brightness` | `dwc get brightness` | 读取当前亮度值 |
-| `dwc.exe set brightness 60` | `dwc set brightness 60` | 将亮度设置为 60 |
+| 命令 | 说明 |
+| --- | --- |
+| `dwc.exe help` | 显示可用命令和语法 |
+| `dwc.exe list` | 列出所有已连接的 ASUS 显示器 |
+| `dwc.exe info` | 显示已连接显示器的详细信息 |
+| `dwc.exe get brightness` | 读取当前亮度值 |
+| `dwc.exe set brightness 60` | 将亮度设置为 60 |
 
 如需命令语法、支持的属性及示例，请参阅 [CLI_REFERENCE.md](CLI_REFERENCE.md)。
 
@@ -86,7 +84,7 @@ ASUS Display Control 提供查询和配置 ASUS 显示器设置的工具。
 - 💬「将所有显示器的亮度设置为 50。」
 - 💬「查看这台显示器支持哪些设置。」
 
-Agent Skill 位于 [skills/asus-display-control/SKILL.md](skills/asus-display-control/SKILL.md)。请将其复制或引用至支持本地技能文件或自定义 Markdown 指令且可运行 Shell 命令的兼容 Agent 中。
+Agent Skill 位于 [skills/asus-display-control/SKILL.md](skills/asus-display-control/SKILL.md). 请将其复制或引用至支持本地技能文件或自定义 Markdown 指令且可运行 Shell 命令的兼容 Agent 中。
 
 ### 兼容 Agent
 
@@ -94,7 +92,7 @@ Agent Skill 位于 [skills/asus-display-control/SKILL.md](skills/asus-display-co
 
 ## ⚙️ 系统要求
 
-- Windows 10/11，或 macOS 12 及更高版本。
+- Windows 10/11。
 - 支持 DDC/CI 的 ASUS 显示器。
 - 在显示器 OSD 菜单中启用 DDC/CI。
 - 支持 DDC/CI 传输的显示连接，例如 DisplayPort 或 HDMI。

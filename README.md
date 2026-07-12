@@ -43,17 +43,15 @@ Use ASUS Display Control CLI for remote IT management and standardized monitor c
 | Platform | Download | Executable |
 | --- | --- | --- |
 | Windows | [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip) | `dwc.exe` |
-| macOS | [dwc_mac.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/macOS/dwc_mac.zip) | `dwc` |
 
 ### CLI Installation
 
 This allows you to run the CLI from any directory without specifying its full path.
-The install scripts are included in the unzipped folder.
+The install script is included in the unzipped folder.
 
 | Platform | Script | Updates |
 | --- | --- | --- |
 | Windows | `install.bat` | `PATH` in Windows Environment Variables |
-| macOS | `install.sh` | `PATH` in shell profile |
 
 **Note**: Do not move or delete the folder after installation — the CLI will stop working if the folder is moved or removed.
 
@@ -61,15 +59,15 @@ The install scripts are included in the unzipped folder.
 
 ### CLI Commands
 
-Open **Command Prompt** (Windows) or **Terminal** (macOS) and try:
+Open **Command Prompt** (Windows) and try:
 
-| Windows | macOS | Description |
-| --- | --- | --- |
-| `dwc.exe help` | `dwc help` | Show available commands and syntax |
-| `dwc.exe list` | `dwc list` | List all connected ASUS monitors |
-| `dwc.exe info` | `dwc info` | Show detailed info for connected monitors |
-| `dwc.exe get brightness` | `dwc get brightness` | Read current brightness value |
-| `dwc.exe set brightness 60` | `dwc set brightness 60` | Set brightness to 60 |
+| Command | Description |
+| --- | --- |
+| `dwc.exe help` | Show available commands and syntax |
+| `dwc.exe list` | List all connected ASUS monitors |
+| `dwc.exe info` | Show detailed info for connected monitors |
+| `dwc.exe get brightness` | Read current brightness value |
+| `dwc.exe set brightness 60` | Set brightness to 60 |
 
 For command syntax, supported properties, and examples, see [CLI_REFERENCE.md](CLI_REFERENCE.md).
 
@@ -94,7 +92,7 @@ The skill is available at [skills/asus-display-control/SKILL.md](skills/asus-dis
 
 ## ⚙️ Requirements
 
-- Windows 10/11, macOS 12 or later.
+- Windows 10/11.
 - An ASUS monitor with DDC/CI support.
 - DDC/CI enabled in the monitor OSD menu.
 - A display connection that passes DDC/CI, such as DisplayPort or HDMI.

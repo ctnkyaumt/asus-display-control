@@ -43,7 +43,6 @@ ASUS Display Control 提供查詢與設定 ASUS 螢幕的工具。
 | 平台 | 下載 | 執行檔 |
 | --- | --- | --- |
 | Windows | [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip) | `dwc.exe` |
-| macOS | [dwc_mac.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/macOS/dwc_mac.zip) | `dwc` |
 
 ### CLI 安裝
 
@@ -53,7 +52,6 @@ ASUS Display Control 提供查詢與設定 ASUS 螢幕的工具。
 | 平台 | 腳本 | 更新項目 |
 | --- | --- | --- |
 | Windows | `install.bat` | Windows 環境變數中的 `PATH` |
-| macOS | `install.sh` | Shell 設定檔中的 `PATH` |
 
 **注意**：安裝後請勿移動或刪除該資料夾——若資料夾被移動或刪除，CLI 將無法正常運作。
 
@@ -61,15 +59,15 @@ ASUS Display Control 提供查詢與設定 ASUS 螢幕的工具。
 
 ### CLI 指令
 
-開啟**命令提示字元**（Windows）或**終端機**（macOS）並嘗試以下指令：
+開啟**命令提示字元**（Windows）並嘗試以下指令：
 
-| Windows | macOS | 說明 |
-| --- | --- | --- |
-| `dwc.exe help` | `dwc help` | 顯示可用指令與語法 |
-| `dwc.exe list` | `dwc list` | 列出所有已連接的 ASUS 螢幕 |
-| `dwc.exe info` | `dwc info` | 顯示已連接螢幕的詳細資訊 |
-| `dwc.exe get brightness` | `dwc get brightness` | 讀取目前亮度值 |
-| `dwc.exe set brightness 60` | `dwc set brightness 60` | 將亮度設為 60 |
+| 指令 | 說明 |
+| --- | --- |
+| `dwc.exe help` | 顯示可用指令與語法 |
+| `dwc.exe list` | 列出所有已連接的 ASUS 螢幕 |
+| `dwc.exe info` | 顯示已連接螢幕的詳細資訊 |
+| `dwc.exe get brightness` | 讀取目前亮度值 |
+| `dwc.exe set brightness 60` | 將亮度設為 60 |
 
 如需指令語法、支援的屬性及範例，請參閱 [CLI_REFERENCE.md](CLI_REFERENCE.md)。
 
@@ -86,7 +84,7 @@ ASUS Display Control 提供查詢與設定 ASUS 螢幕的工具。
 - 💬「將所有螢幕的亮度設為 50。」
 - 💬「查看這台螢幕支援哪些設定。」
 
-技能檔案位於 [skills/asus-display-control/SKILL.md](skills/asus-display-control/SKILL.md)。請將其複製或引用至支援本機技能檔案或自訂 Markdown 指令且可執行 Shell 指令的相容 Agent 中。
+技能檔案位於 [skills/asus-display-control/SKILL.md](skills/asus-display-control/SKILL.md). 請將其複製或引用至支援本機技能檔案或自訂 Markdown 指令且可執行 Shell 指令的相容 Agent 中。
 
 ### 相容 Agent
 
@@ -94,7 +92,7 @@ ASUS Display Control 提供查詢與設定 ASUS 螢幕的工具。
 
 ## ⚙️ 系統需求
 
-- Windows 10/11，或 macOS 12 以上版本。
+- Windows 10/11。
 - 支援 DDC/CI 的 ASUS 螢幕。
 - 在螢幕 OSD 選單中啟用 DDC/CI。
 - 支援 DDC/CI 傳輸的顯示連接，例如 DisplayPort 或 HDMI。

@@ -43,17 +43,15 @@ Use ASUS Display Control CLI para la gestión remota de TI y la configuración e
 | Plataforma | Descarga | Ejecutable |
 | --- | --- | --- |
 | Windows | [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip) | `dwc.exe` |
-| macOS | [dwc_mac.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/macOS/dwc_mac.zip) | `dwc` |
 
 ### Instalación de CLI
 
 Esto le permite ejecutar la CLI desde cualquier directorio sin especificar su ruta completa.
-Los scripts de instalación están incluidos en la carpeta descomprimida.
+El script de instalación está incluido en la carpeta descomprimida.
 
 | Plataforma | Script | Actualiza |
 | --- | --- | --- |
 | Windows | `install.bat` | `PATH` en las Variables de Entorno de Windows |
-| macOS | `install.sh` | `PATH` en el perfil del shell |
 
 **Nota**: No mueva ni elimine la carpeta después de la instalación — la CLI dejará de funcionar si la carpeta se mueve o se elimina.
 
@@ -61,15 +59,15 @@ Los scripts de instalación están incluidos en la carpeta descomprimida.
 
 ### Comandos de CLI
 
-Abra el **Símbolo del sistema** (Windows) o la **Terminal** (macOS) e intente:
+Abra el **Símbolo del sistema** (Windows) e intente:
 
-| Windows | macOS | Descripción |
-| --- | --- | --- |
-| `dwc.exe help` | `dwc help` | Mostrar comandos disponibles y sintaxis |
-| `dwc.exe list` | `dwc list` | Listar todos los monitores ASUS conectados |
-| `dwc.exe info` | `dwc info` | Mostrar información detallada de los monitores conectados |
-| `dwc.exe get brightness` | `dwc get brightness` | Leer el valor de brillo actual |
-| `dwc.exe set brightness 60` | `dwc set brightness 60` | Establecer el brillo en 60 |
+| Comando | Descripción |
+| --- | --- |
+| `dwc.exe help` | Mostrar comandos disponibles y sintaxis |
+| `dwc.exe list` | Listar todos los monitores ASUS conectados |
+| `dwc.exe info` | Mostrar información detallada de los monitores conectados |
+| `dwc.exe get brightness` | Leer el valor de brillo actual |
+| `dwc.exe set brightness 60` | Establecer el brillo en 60 |
 
 Para la sintaxis de comandos, propiedades compatibles y ejemplos, consulte [CLI_REFERENCE.md](CLI_REFERENCE.md).
 
@@ -94,7 +92,7 @@ El Agent Skill está disponible en [skills/asus-display-control/SKILL.md](skills
 
 ## ⚙️ Requisitos
 
-- Windows 10/11, macOS 12 o posterior.
+- Windows 10/11.
 - Un monitor ASUS con compatibilidad DDC/CI.
 - DDC/CI habilitado en el menú OSD del monitor.
 - Una conexión de pantalla que transmita DDC/CI, como DisplayPort o HDMI.
