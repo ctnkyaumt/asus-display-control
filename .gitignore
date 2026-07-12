@@ -1,5 +1,6 @@
 # Local binary folder
 bin/
+cli/windows/dwc/
 
 # Python cache
 __pycache__/

@@ -244,15 +244,27 @@ class ASUSDisplayControlGUI:
         path = shutil.which("dwc.exe")
         if path:
             return path
-        # 2. Search in workspace bin/dwc/dwc.exe
-        local_path = os.path.join(os.path.dirname(__file__), "bin", "dwc", "dwc.exe")
+        # 2. Search in workspace cli/windows/dwc/dwc.exe
+        local_path = os.path.join(os.path.dirname(__file__), "cli", "windows", "dwc", "dwc.exe")
         if os.path.exists(local_path):
             return local_path
-        # 3. Search in workspace cli/windows/dwc_win/dwc.exe
-        local_path_2 = os.path.join(os.path.dirname(__file__), "cli", "windows", "dwc", "dwc.exe")
-        if os.path.exists(local_path_2):
-            return local_path_2
-        # 4. Same folder
+        # 3. Auto-extract packaged zip
+        zip_path = os.path.join(os.path.dirname(__file__), "cli", "windows", "dwc_win.zip")
+        if os.path.exists(zip_path):
+            try:
+                import zipfile
+                dest_dir = os.path.join(os.path.dirname(__file__), "cli", "windows")
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(dest_dir)
+                if os.path.exists(local_path):
+                    return local_path
+            except Exception:
+                pass
+        # 4. Search in workspace bin/dwc/dwc.exe
+        local_path_bin = os.path.join(os.path.dirname(__file__), "bin", "dwc", "dwc.exe")
+        if os.path.exists(local_path_bin):
+            return local_path_bin
+        # 5. Same folder
         same_folder = os.path.join(os.path.dirname(__file__), "dwc.exe")
         if os.path.exists(same_folder):
             return same_folder
@@ -304,28 +316,9 @@ class ASUSDisplayControlGUI:
         self.monitor_combo.pack(fill="x", padx=15, pady=(0, 15))
         self.monitor_combo.bind("<<ComboboxSelected>>", self.on_monitor_selected)
         
-        # Sidebar Menu Links (replicating GUI with disabled links)
-        menu_items = [
-            ("Splendid", True),
-            ("GamePlus", False),
-            ("Eye Care", False),
-            ("MultiScreen", False),
-            ("HotKey", False),
-            ("App Tweaker", False),
-            ("System Settings", False),
-            ("Smart Voice Control", False),
-            ("User Center", False),
-            ("Application Settings", False),
-            ("User Manual", False)
-        ]
-        
-        for name, active in menu_items:
-            bg_color = COLOR_ACCENT if active else BG_SIDEBAR
-            fg_color = "#ffffff" if active else COLOR_TEXT_MUTED
-            cursor_type = "hand2" if active else "arrow"
-            
-            lbl = tk.Label(sidebar, text=f"  {name}", font=FONT_LABEL, bg=bg_color, fg=fg_color, anchor="w", pady=3, cursor=cursor_type)
-            lbl.pack(fill="x", padx=10, pady=1)
+        # Active Tab Indicator (only Splendid)
+        lbl = tk.Label(sidebar, text="  Splendid", font=FONT_LABEL, bg=COLOR_ACCENT, fg="#ffffff", anchor="w", pady=6, cursor="hand2")
+        lbl.pack(fill="x", padx=10, pady=5)
             
         # Status box at bottom
         self.status_lbl = tk.Label(sidebar, text="Initializing...", font=FONT_MUTED, bg=BG_SIDEBAR, fg=COLOR_TEXT_MUTED, wraplength=180, justify="left")
@@ -476,7 +469,7 @@ class ASUSDisplayControlGUI:
     # CONTROLLER METHODS (THREADED OPERATIONS)
     # ==============================================================================
     def set_status(self, msg):
-        self.status_lbl.configure(text=msg)
+        self.root.after(0, lambda: self.status_lbl.configure(text=msg))
         
     def detect_monitors_thread(self):
         self.set_status("Searching for ASUS monitors...")
@@ -611,6 +604,9 @@ class ASUSDisplayControlGUI:
     # SET OPERATIONS (THREADED)
     # ==============================================================================
     def set_preset_thread(self, val):
+        if not self.selected_monitor_id:
+            self.set_status("Error: No monitor selected.")
+            return
         if self.is_syncing: return
         self.set_status(f"Changing Splendid mode to {val}...")
         self.is_syncing = True
@@ -633,6 +629,9 @@ class ASUSDisplayControlGUI:
             self.is_syncing = False
 
     def set_vcp_value_thread(self, prop_name, val):
+        if not self.selected_monitor_id:
+            self.set_status("Error: No monitor selected.")
+            return
         if self.is_syncing: return
         self.previous_settings = self.current_settings.copy()
         self.current_settings[prop_name] = val
@@ -656,6 +655,9 @@ class ASUSDisplayControlGUI:
     # EXTRA ACTION HANDLERS
     # ==============================================================================
     def reset_preset_thread(self):
+        if not self.selected_monitor_id:
+            self.set_status("Error: No monitor selected.")
+            return
         if self.is_syncing: return
         if not messagebox.askyesno("Reset Mode", "Are you sure you want to reset the current display settings to factory default?"):
             return
@@ -673,6 +675,9 @@ class ASUSDisplayControlGUI:
             self.is_syncing = False
 
     def toggle_compare(self):
+        if not self.selected_monitor_id:
+            self.set_status("Error: No monitor selected.")
+            return
         if self.is_syncing: return
         if not self.previous_settings: return
         
@@ -703,6 +708,9 @@ class ASUSDisplayControlGUI:
         self.query_settings()
 
     def export_profile(self):
+        if not self.selected_monitor_id:
+            self.set_status("Error: No monitor selected.")
+            return
         if not self.current_settings: return
         file_path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON Files", "*.json")], title="Export Settings Profile")
         if not file_path: return
@@ -713,8 +721,11 @@ class ASUSDisplayControlGUI:
             self.set_status("Profile exported successfully.")
         except Exception as e:
             messagebox.showerror("Export Failed", f"Could not export profile: {str(e)}")
-
+  
     def import_profile(self):
+        if not self.selected_monitor_id:
+            self.set_status("Error: No monitor selected.")
+            return
         if self.is_syncing: return
         file_path = filedialog.askopenfilename(filetypes=[("JSON Files", "*.json")], title="Import Settings Profile")
         if not file_path: return
