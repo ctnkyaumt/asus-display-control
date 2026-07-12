@@ -455,8 +455,10 @@ class ASUSDisplayControlGUI:
         self.btn_reset = tk.Button(actions_frame, text="Reset Mode", font=FONT_LABEL, bg=BG_CARD, fg="#ffffff", activebackground=BG_CARD_HOVER, activeforeground="#ffffff", bd=0, padx=15, pady=6, cursor="hand2", command=self.reset_preset_thread)
         self.btn_reset.pack(side="left", padx=(0, 10))
         
-        self.btn_compare = tk.Button(actions_frame, text="Compare Settings", font=FONT_LABEL, bg=BG_CARD, fg="#ffffff", activebackground=BG_CARD_HOVER, activeforeground="#ffffff", bd=0, padx=15, pady=6, cursor="hand2", command=self.toggle_compare)
+        self.btn_compare = tk.Button(actions_frame, text="Compare Settings", font=FONT_LABEL, bg=BG_CARD, fg="#ffffff", activebackground=COLOR_ACCENT, activeforeground="#ffffff", bd=0, padx=15, pady=6, cursor="hand2")
         self.btn_compare.pack(side="left")
+        self.btn_compare.bind("<Button-1>", self.start_compare)
+        self.btn_compare.bind("<ButtonRelease-1>", self.stop_compare)
         
         # Right Actions
         self.btn_export = tk.Button(actions_frame, text="Export Profile", font=FONT_LABEL, bg=COLOR_ACCENT, fg="#ffffff", activebackground="#1d4ed8", activeforeground="#ffffff", bd=0, padx=15, pady=6, cursor="hand2", command=self.export_profile)
@@ -522,17 +524,60 @@ class ASUSDisplayControlGUI:
 
     def query_settings(self):
         m_id = self.selected_monitor_id
-        props = ["Splendid", "Brightness", "Contrast", "Overdrive", "ShadowBoost", "ASCR", "Saturation", "Hue", "ColorTemp", "RedGain", "GreenGain", "BlueGain"]
+        if not hasattr(self, "supported_properties"):
+            self.supported_properties = {}
+            
+        all_props = ["Splendid", "Brightness", "Contrast", "Overdrive", "ShadowBoost", "ASCR", "Saturation", "Hue", "ColorTemp", "RedGain", "GreenGain", "BlueGain"]
         settings = {}
         
-        for prop in props:
-            try:
-                out = self.run_dwc(["get", prop, "--id", m_id])
-                val = int(out.strip())
-                settings[prop] = val
-            except Exception:
-                settings[prop] = None # Unsupported or failed
+        # If this is the first time syncing this monitor, run queries in parallel
+        if m_id not in self.supported_properties:
+            results = {}
+            threads = []
+            def query_one(prop):
+                try:
+                    out = self.run_dwc(["get", prop, "--id", m_id])
+                    val = int(out.strip())
+                    results[prop] = val
+                except Exception:
+                    results[prop] = None
+                    
+            for prop in all_props:
+                t = threading.Thread(target=query_one, args=(prop,))
+                t.start()
+                threads.append(t)
+            for t in threads:
+                t.join()
                 
+            supported = []
+            for prop in all_props:
+                val = results.get(prop)
+                settings[prop] = val
+                if val is not None:
+                    supported.append(prop)
+            self.supported_properties[m_id] = supported
+        else:
+            # Query only supported properties sequentially
+            query_props = self.supported_properties[m_id]
+            for prop in query_props:
+                # Optimize: Skip RGB gains if ColorTemp is not set to User (11)
+                if prop in ["RedGain", "GreenGain", "BlueGain"]:
+                    color_temp = settings.get("ColorTemp") or self.current_settings.get("ColorTemp")
+                    if color_temp != 11:
+                        settings[prop] = None
+                        continue
+                try:
+                    out = self.run_dwc(["get", prop, "--id", m_id])
+                    val = int(out.strip())
+                    settings[prop] = val
+                except Exception:
+                    settings[prop] = None
+                    
+            # Populate un-queried properties with None
+            for prop in all_props:
+                if prop not in settings:
+                    settings[prop] = None
+                    
         self.current_settings = settings.copy()
         if not self.previous_settings:
             self.previous_settings = settings.copy()
@@ -674,38 +719,102 @@ class ASUSDisplayControlGUI:
             self.root.after(0, lambda: self.set_status(f"Error: {str(e)}"))
             self.is_syncing = False
 
-    def toggle_compare(self):
-        if not self.selected_monitor_id:
-            self.set_status("Error: No monitor selected.")
-            return
+    def start_compare(self, event=None):
+        if not self.selected_monitor_id: return
         if self.is_syncing: return
         if not self.previous_settings: return
         
-        self.is_syncing = True
-        if not self.is_comparing:
-            self.set_status("Applying previous settings for comparison...")
-            self.is_comparing = True
-            self.btn_compare.configure(bg=COLOR_ACCENT, text="Compare: Previous")
-            target_settings = self.previous_settings
-        else:
-            self.set_status("Restoring modified settings...")
-            self.is_comparing = False
-            self.btn_compare.configure(bg=BG_CARD, text="Compare Settings")
-            target_settings = self.current_settings
-            
-        threading.Thread(target=self.apply_full_settings, args=(target_settings,), daemon=True).start()
+        self.is_comparing = True
+        self.set_status("Comparing: Showing previous settings (Hold to compare)...")
+        self.btn_compare.configure(bg=COLOR_ACCENT, text="Comparing...")
+        
+        # Find differences between previous and current
+        diffs = {}
+        for k, v in self.previous_settings.items():
+            if v is not None and self.current_settings.get(k) != v:
+                diffs[k] = v
+                
+        if diffs:
+            threading.Thread(target=self.apply_diff_settings, args=(diffs,), daemon=True).start()
 
-    def apply_full_settings(self, settings_dict):
+    def stop_compare(self, event=None):
+        if not self.selected_monitor_id: return
+        if not self.is_comparing: return
+        
+        self.is_comparing = False
+        self.set_status("Restoring modified settings...")
+        self.btn_compare.configure(bg=BG_CARD, text="Compare Settings")
+        
+        # Find differences between current and previous
+        diffs = {}
+        for k, v in self.current_settings.items():
+            if v is not None and self.previous_settings.get(k) != v:
+                diffs[k] = v
+                
+        if diffs:
+            threading.Thread(target=self.apply_diff_settings, args=(diffs, True), daemon=True).start()
+        else:
+            self.set_status("Settings restored.")
+
+    def apply_diff_settings(self, diffs, is_restoring=False):
         m_id = self.selected_monitor_id
-        for prop, val in settings_dict.items():
-            if val is not None and prop != "Splendid":
+        
+        # If Splendid is different, set it first
+        if "Splendid" in diffs:
+            try:
+                self.run_dwc(["set", "Splendid", str(diffs["Splendid"]), "--id", m_id])
+                time.sleep(1.0)
+            except Exception:
+                pass
+                
+        for prop, val in diffs.items():
+            if prop != "Splendid":
                 try:
                     self.run_dwc(["set", prop, str(val), "--id", m_id])
-                    time.sleep(0.1) # Small delay to prevent monitor processor overloading
+                    time.sleep(0.05)
                 except Exception:
                     pass
-        # Reload current state after comparison write
-        self.query_settings()
+                    
+        if is_restoring:
+            self.query_settings()
+        else:
+            # Temporarily update UI to show comparison values
+            self.root.after(0, lambda: self.update_ui_with_values(diffs))
+
+    def update_ui_with_values(self, values_dict):
+        for prop, val in values_dict.items():
+            if prop == "Brightness":
+                self.slider_brightness.set(val)
+                self.val_brightness_lbl.configure(text=str(val))
+            elif prop == "Contrast":
+                self.slider_contrast.set(val)
+                self.val_contrast_lbl.configure(text=str(val))
+            elif prop == "Overdrive":
+                self.slider_overdrive.set(val)
+                self.val_overdrive_lbl.configure(text=str(val))
+            elif prop == "Saturation":
+                self.slider_saturation.set(val)
+                self.val_saturation_lbl.configure(text=str(val))
+            elif prop == "Hue":
+                self.slider_hue.set(val)
+                self.val_hue_lbl.configure(text=str(val))
+            elif prop == "RedGain":
+                self.slider_r.set(val)
+                self.val_r_lbl.configure(text=str(val))
+            elif prop == "GreenGain":
+                self.slider_g.set(val)
+                self.val_g_lbl.configure(text=str(val))
+            elif prop == "BlueGain":
+                self.slider_b.set(val)
+                self.val_b_lbl.configure(text=str(val))
+            elif prop == "ASCR":
+                self.switch_ascr.set(val == 1)
+            elif prop == "ShadowBoost":
+                if 0 <= val < 4:
+                    self.combo_shadowboost.set(["OFF", "Level 1", "Level 2", "Level 3"][val])
+            elif prop == "ColorTemp":
+                if val in self.temp_codes:
+                    self.combo_temp.set(self.temp_values[self.temp_codes.index(val)])
 
     def export_profile(self):
         if not self.selected_monitor_id:
