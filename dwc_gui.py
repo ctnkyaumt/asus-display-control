@@ -698,11 +698,24 @@ class ASUSDisplayControlGUI:
         try:
             self.run_dwc(["set", "Splendid", str(val), "--id", self.selected_monitor_id])
             # Sleep slightly to allow monitor to transition before reading/writing settings
-            time.sleep(1.0)
+            time.sleep(0.2)
             
-            # Apply saved memory settings for this preset if they exist
+            # Apply saved memory settings in dependency order: ColorTemp first, RGB Gains last.
             if val in self.preset_memory:
+                sorted_props = []
+                # 1. ColorTemp
+                if "ColorTemp" in self.preset_memory[val]:
+                    sorted_props.append(("ColorTemp", self.preset_memory[val]["ColorTemp"]))
+                # 2. Other non-gain properties
                 for prop, saved_val in self.preset_memory[val].items():
+                    if prop not in ["ColorTemp", "RedGain", "GreenGain", "BlueGain"]:
+                        sorted_props.append((prop, saved_val))
+                # 3. RGB Gains
+                for prop in ["RedGain", "GreenGain", "BlueGain"]:
+                    if prop in self.preset_memory[val]:
+                        sorted_props.append((prop, self.preset_memory[val][prop]))
+                        
+                for prop, saved_val in sorted_props:
                     if saved_val is not None:
                         try:
                             self.run_dwc(["set", prop, str(saved_val), "--id", self.selected_monitor_id])
@@ -809,10 +822,24 @@ class ASUSDisplayControlGUI:
     def set_preset_compare(self, val):
         try:
             self.run_dwc(["set", "Splendid", str(val), "--id", self.selected_monitor_id])
-            time.sleep(1.0)
+            time.sleep(0.2)
             
+            # Apply saved memory settings in dependency order: ColorTemp first, RGB Gains last.
             if val in self.preset_memory:
+                sorted_props = []
+                # 1. ColorTemp
+                if "ColorTemp" in self.preset_memory[val]:
+                    sorted_props.append(("ColorTemp", self.preset_memory[val]["ColorTemp"]))
+                # 2. Other non-gain properties
                 for prop, saved_val in self.preset_memory[val].items():
+                    if prop not in ["ColorTemp", "RedGain", "GreenGain", "BlueGain"]:
+                        sorted_props.append((prop, saved_val))
+                # 3. RGB Gains
+                for prop in ["RedGain", "GreenGain", "BlueGain"]:
+                    if prop in self.preset_memory[val]:
+                        sorted_props.append((prop, self.preset_memory[val][prop]))
+                        
+                for prop, saved_val in sorted_props:
                     if saved_val is not None:
                         try:
                             self.run_dwc(["set", prop, str(saved_val), "--id", self.selected_monitor_id])
@@ -888,7 +915,7 @@ class ASUSDisplayControlGUI:
             if imported_preset is not None:
                 try:
                     self.run_dwc(["set", "Splendid", str(imported_preset), "--id", m_id])
-                    time.sleep(1.0)
+                    time.sleep(0.2)
                 except Exception:
                     pass
             
@@ -901,9 +928,19 @@ class ASUSDisplayControlGUI:
                     if val is not None and prop != "Splendid":
                         self.preset_memory[current_preset][prop] = val
                         
-            # Apply each individual setting
+            # Apply each individual setting in dependency order: ColorTemp first, RGB Gains last.
+            sorted_props = []
+            if "ColorTemp" in settings_dict:
+                sorted_props.append(("ColorTemp", settings_dict["ColorTemp"]))
             for prop, val in settings_dict.items():
-                if val is not None and prop != "Splendid":
+                if prop not in ["ColorTemp", "RedGain", "GreenGain", "BlueGain", "Splendid"]:
+                    sorted_props.append((prop, val))
+            for prop in ["RedGain", "GreenGain", "BlueGain"]:
+                if prop in settings_dict:
+                    sorted_props.append((prop, settings_dict[prop]))
+                    
+            for prop, val in sorted_props:
+                if val is not None:
                     try:
                         self.run_dwc(["set", prop, str(val), "--id", m_id])
                         time.sleep(0.05)
