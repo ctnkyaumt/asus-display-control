@@ -182,11 +182,11 @@ class PresetCard(tk.Frame):
         self.hover_bg = hover_bg
         self.is_active = False
         
-        self.icon_label = tk.Label(self, text=icon, font=("Segoe UI", 14), bg=bg, fg="#ffffff", anchor="center")
-        self.icon_label.pack(side="top", fill="x", pady=(0, 1))
+        self.icon_label = tk.Label(self, text=icon, font=("Segoe MDL2 Assets", 15), bg=bg, fg="#ffffff", anchor="center")
+        self.icon_label.pack(side="top", fill="x", pady=(4, 1))
         
         self.text_label = tk.Label(self, text=text, font=("Segoe UI", 8, "bold"), bg=bg, fg="#ffffff", anchor="center")
-        self.text_label.pack(side="top", fill="x")
+        self.text_label.pack(side="top", fill="x", pady=(0, 4))
         
         for w in (self, self.icon_label, self.text_label):
             w.bind("<Button-1>", self.on_click)
@@ -234,6 +234,8 @@ class ASUSDisplayControlGUI:
         self.current_settings = {}
         self.previous_settings = {}
         self.preset_memory = {}
+        self.current_preset = None
+        self.previous_preset = None
         self.is_comparing = False
         self.is_syncing = False
         
@@ -343,14 +345,14 @@ class ASUSDisplayControlGUI:
         self.preset_frame.pack(fill="x", pady=(0, 10))
         
         self.presets = [
-            ("Standard", "🖥️", 4),
-            ("Reading", "📖", 7),
-            ("Theater", "🎬", 1),
-            ("Scenery", "🏔️", 2),
-            ("Game", "🎮", 5),
-            ("sRGB", "🎨", 3),
-            ("Darkroom", "💡", 8),
-            ("Night View", "🌙", 6)
+            ("Standard", "\uE7F4", 4),
+            ("Reading", "\uE82F", 7),
+            ("Theater", "\uE8B2", 1),
+            ("Scenery", "\uEB9F", 2),
+            ("Game", "\uE7FC", 5),
+            ("sRGB", "\uE790", 3),
+            ("Darkroom", "\uEA80", 8),
+            ("Night View", "\uEC46", 6)
         ]
         
         self.preset_cards = {}
@@ -585,6 +587,14 @@ class ASUSDisplayControlGUI:
         if old_preset is not None and new_preset is not None and old_preset != new_preset:
             preset_changed = True
             
+        # Update preset history trackers
+        if new_preset is not None:
+            if self.current_preset is None:
+                self.current_preset = new_preset
+            elif self.current_preset != new_preset:
+                self.previous_preset = self.current_preset
+                self.current_preset = new_preset
+            
         self.current_settings = settings.copy()
         if not self.previous_settings or preset_changed:
             self.previous_settings = settings.copy()
@@ -667,7 +677,13 @@ class ASUSDisplayControlGUI:
         if not self.selected_monitor_id:
             self.set_status("Error: No monitor selected.")
             return
-        if self.is_syncing: return
+        if self.is_syncing or self.is_comparing: return
+        
+        # Update preset history on manual selection
+        if self.current_preset is not None and self.current_preset != val:
+            self.previous_preset = self.current_preset
+            self.current_preset = val
+            
         self.set_status(f"Changing Splendid mode to {val}...")
         self.is_syncing = True
         
@@ -703,7 +719,7 @@ class ASUSDisplayControlGUI:
         if not self.selected_monitor_id:
             self.set_status("Error: No monitor selected.")
             return
-        if self.is_syncing: return
+        if self.is_syncing or self.is_comparing: return
         self.previous_settings = self.current_settings.copy()
         self.current_settings[prop_name] = val
         
@@ -737,7 +753,7 @@ class ASUSDisplayControlGUI:
         if not self.selected_monitor_id:
             self.set_status("Error: No monitor selected.")
             return
-        if self.is_syncing: return
+        if self.is_syncing or self.is_comparing: return
         if not messagebox.askyesno("Reset Mode", "Are you sure you want to reset the current display settings to factory default?"):
             return
         self.is_syncing = True
@@ -760,99 +776,72 @@ class ASUSDisplayControlGUI:
     def start_compare(self, event=None):
         if not self.selected_monitor_id: return
         if self.is_syncing: return
-        if not self.previous_settings: return
+        if not self.previous_preset: return
         
         self.is_comparing = True
-        self.set_status("Comparing: Showing previous settings (Hold to compare)...")
+        self.set_status("Comparing: Showing previous preset...")
         self.btn_compare.configure(bg=COLOR_ACCENT, text="Comparing...")
         
-        # Find differences between previous and current
-        diffs = {}
-        for k, v in self.previous_settings.items():
-            if v is not None and self.current_settings.get(k) != v:
-                diffs[k] = v
-                
-        if diffs:
-            threading.Thread(target=self.apply_diff_settings, args=(diffs,), daemon=True).start()
+        # UI cards highlight the previous preset
+        for card in self.preset_cards.values():
+            card.set_active(False)
+        self.preset_cards[self.previous_preset].set_active(True)
+        
+        threading.Thread(target=self.set_preset_compare, args=(self.previous_preset,), daemon=True).start()
 
     def stop_compare(self, event=None):
         if not self.selected_monitor_id: return
         if not self.is_comparing: return
         
         self.is_comparing = False
-        self.set_status("Restoring modified settings...")
+        self.set_status("Restoring current preset...")
         self.btn_compare.configure(bg=BG_CARD, text="Compare Settings")
         
-        # Find differences between current and previous
-        diffs = {}
-        for k, v in self.current_settings.items():
-            if v is not None and self.previous_settings.get(k) != v:
-                diffs[k] = v
-                
-        if diffs:
-            threading.Thread(target=self.apply_diff_settings, args=(diffs, True), daemon=True).start()
-        else:
-            self.set_status("Settings restored.")
+        # UI cards highlight the current preset
+        for card in self.preset_cards.values():
+            card.set_active(False)
+        if self.current_preset in self.preset_cards:
+            self.preset_cards[self.current_preset].set_active(True)
+            
+        self.is_syncing = True
+        threading.Thread(target=self.set_preset, args=(self.current_preset,), daemon=True).start()
 
-    def apply_diff_settings(self, diffs, is_restoring=False):
-        m_id = self.selected_monitor_id
-        
-        # If Splendid is different, set it first
-        if "Splendid" in diffs:
-            try:
-                self.run_dwc(["set", "Splendid", str(diffs["Splendid"]), "--id", m_id])
-                time.sleep(1.0)
-            except Exception:
-                pass
+    def set_preset_compare(self, val):
+        try:
+            self.run_dwc(["set", "Splendid", str(val), "--id", self.selected_monitor_id])
+            time.sleep(1.0)
+            
+            if val in self.preset_memory:
+                for prop, saved_val in self.preset_memory[val].items():
+                    if saved_val is not None:
+                        try:
+                            self.run_dwc(["set", prop, str(saved_val), "--id", self.selected_monitor_id])
+                            time.sleep(0.05)
+                        except Exception:
+                            pass
+            
+            # Read and temporarily update UI state
+            preset_vals = self.current_settings.copy()
+            preset_vals["Splendid"] = val
+            if val in self.preset_memory:
+                for k, v in self.preset_memory[val].items():
+                    preset_vals[k] = v
+            else:
+                for k in preset_vals.keys():
+                    if k != "Splendid":
+                        preset_vals[k] = None
+                        
+            actual_settings = self.current_settings.copy()
+            
+            def run_ui_update():
+                self.current_settings = preset_vals
+                self.update_ui_state()
+                self.current_settings = actual_settings
+                self.set_status("Comparing: Showing previous preset (Release to restore)...")
                 
-        for prop, val in diffs.items():
-            if prop != "Splendid":
-                try:
-                    self.run_dwc(["set", prop, str(val), "--id", m_id])
-                    time.sleep(0.05)
-                except Exception:
-                    pass
-                    
-        if is_restoring:
-            self.query_settings()
-        else:
-            # Temporarily update UI to show comparison values
-            self.root.after(0, lambda: self.update_ui_with_values(diffs))
-
-    def update_ui_with_values(self, values_dict):
-        for prop, val in values_dict.items():
-            if prop == "Brightness":
-                self.slider_brightness.set(val)
-                self.val_brightness_lbl.configure(text=str(val))
-            elif prop == "Contrast":
-                self.slider_contrast.set(val)
-                self.val_contrast_lbl.configure(text=str(val))
-            elif prop == "Overdrive":
-                self.slider_overdrive.set(val)
-                self.val_overdrive_lbl.configure(text=str(val))
-            elif prop == "Saturation":
-                self.slider_saturation.set(val)
-                self.val_saturation_lbl.configure(text=str(val))
-            elif prop == "Hue":
-                self.slider_hue.set(val)
-                self.val_hue_lbl.configure(text=str(val))
-            elif prop == "RedGain":
-                self.slider_r.set(val)
-                self.val_r_lbl.configure(text=str(val))
-            elif prop == "GreenGain":
-                self.slider_g.set(val)
-                self.val_g_lbl.configure(text=str(val))
-            elif prop == "BlueGain":
-                self.slider_b.set(val)
-                self.val_b_lbl.configure(text=str(val))
-            elif prop == "ASCR":
-                self.switch_ascr.set(val == 1)
-            elif prop == "ShadowBoost":
-                if 0 <= val < 4:
-                    self.combo_shadowboost.set(["OFF", "Level 1", "Level 2", "Level 3"][val])
-            elif prop == "ColorTemp":
-                if val in self.temp_codes:
-                    self.combo_temp.set(self.temp_values[self.temp_codes.index(val)])
+            self.root.after(0, run_ui_update)
+        except Exception as e:
+            self.root.after(0, lambda: self.set_status(f"Error comparing: {str(e)}"))
 
     def export_profile(self):
         if not self.selected_monitor_id:
