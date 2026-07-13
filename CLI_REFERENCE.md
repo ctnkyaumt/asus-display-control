@@ -205,7 +205,7 @@ Supported properties vary by ASUS monitor model, firmware, input mode, and conne
 
 ## Safety Notes
 
-- `reset-all`, `reset-color`, and `reset-mode` change monitor state and should require explicit approval in remote or agent-driven workflows.
+- `reset-all`, `reset-color`, and `reset-mode` change monitor state; use them deliberately in scripts and automation.
 - `setvcp` writes raw VCP values. Prefer high-level properties such as `Brightness` or `InputSource` when available.
 - Some settings may be unavailable depending on the active input, display mode, model family, or firmware.
 - For broad deployment, test on each monitor model before rolling out settings across a fleet.

@@ -1,108 +1,70 @@
-# 🖥️ ASUS Display Control
+# 🖥️ ASUS Display Control (GUI fork)
 
-![CLI](https://img.shields.io/badge/CLI-Windows-blue)
+![Windows](https://img.shields.io/badge/Windows-10%2F11-blue)
+![.NET](https://img.shields.io/badge/.NET-8-512BD4)
 ![License](https://img.shields.io/badge/license-Apache%202.0-green)
 
-🌐 **Language**: **English** · [繁體中文](./README.zh-TW.md) · [简体中文](./README.zh-CN.md) · [日本語](./README.ja.md) · [한국어](./README.ko.md) · [Español](./README.es.md)
+A small, fast, native Windows app for controlling ASUS monitor settings — Splendid
+presets, brightness/contrast/color, a system-tray icon, and automatic preset scheduling.
 
-ASUS Display Control provides tools for querying and configuring ASUS monitor settings.
-This repository currently includes a [CLI](#-cli-quick-start) (Command-Line Interface) tool for scripting and automation, and an AI [Agent Skill](#-ai-agent-skill) for natural-language monitor control.
+This is a fork of [ASUS-Display/asus-display-control](https://github.com/ASUS-Display/asus-display-control),
+which ships a command-line tool (`dwc.exe`). This fork wraps that CLI in a lightweight
+WinForms GUI so you get a real control panel without ASUS DisplayWidget Center
+(~107 MB installed, ~60 MB RAM). The app is ~1.3 MB and idles around ~14 MB of RAM.
 
-For users who prefer a GUI (Graphical User Interface), [ASUS DisplayWidget Center](https://www.asus.com/content/monitor-software-osd-displaywidgetcenter/) is available from the official ASUS site.
+<img src="image/screenshot.png" alt="ASUS Display Control" width="760">
 
-## 📋 Overview
+## ✨ Features
 
-| Target users | Solution | What it enables |
-|---|---|---|
-| Enterprise IT managers | [CLI](#-cli-quick-start) + IT tools | Remote scripting, deployment, auditing, and standardized monitor configuration across corporate workstations. |
-| Developers | [CLI](#-cli-quick-start) + Scripts | Monitor-control automation from Command Prompt, PowerShell, or scripts. |
-| AI Agent users | [CLI](#-cli-quick-start) + [Agent Skill](#-ai-agent-skill) | Natural-language monitor control through an AI assistant. |
-
-## 🏢 Enterprise IT Management
-
-<img src="image/IMG_DWC_CLI_Enterprise.png" alt="Enterprise IT Management" width="700">
-
-Use ASUS Display Control CLI for remote IT management and standardized monitor configuration across corporate workstations.
-
-### Typical use cases
-
-- Configure brightness, color presets, input source, power behavior, or OSD-related settings.
-- Run startup scripts, scheduled tasks, or enterprise management workflows.
-- Audit monitor settings and capabilities for inventory, compliance, or troubleshooting purposes.
-- Standardize monitor configurations across new deployments, replacement devices, or entire departments.
-
-### Enterprise Deployment
-
-- For large-scale deployments, ASUS Display Control CLI can be distributed and executed through existing corporate endpoint-management infrastructure, such as Microsoft Intune, Microsoft Configuration Manager (SCCM), PowerShell Remoting, SSH, or similar enterprise management tools.
-- Note that ASUS Display Control CLI provides local monitor control on individual workstations only.
-
-## 🚀 CLI Quick Start
-
-### CLI Download
-
-| Platform | Download | Executable |
-| --- | --- | --- |
-| Windows | [dwc_win.zip](https://github.com/ASUS-Display/asus-display-control/raw/main/cli/windows/dwc_win.zip) | `dwc.exe` |
-
-### CLI Installation
-
-This allows you to run the CLI from any directory without specifying its full path.
-The install script is included in the unzipped folder.
-
-| Platform | Script | Updates |
-| --- | --- | --- |
-| Windows | `install.bat` | `PATH` in Windows Environment Variables |
-
-**Note**: Do not move or delete the folder after installation — the CLI will stop working if the folder is moved or removed.
-
-<img src="image/IMG_DWC_CLI_Install.png" alt="CLI Installation" width="700">
-
-### CLI Commands
-
-Open **Command Prompt** (Windows) and try:
-
-| Command | Description |
-| --- | --- |
-| `dwc.exe help` | Show available commands and syntax |
-| `dwc.exe list` | List all connected ASUS monitors |
-| `dwc.exe info` | Show detailed info for connected monitors |
-| `dwc.exe get brightness` | Read current brightness value |
-| `dwc.exe set brightness 60` | Set brightness to 60 |
-
-For command syntax, supported properties, and examples, see [CLI_REFERENCE.md](CLI_REFERENCE.md).
-
-<img src="image/IMG_DWC_CLI_Example.png" alt="CLI Example" width="700">
-
-## 🤖 AI Agent Skill
-
-Use the agent skill when you want an AI assistant to control a monitor for you instead of typing commands manually.
-
-Example requests:
-
-- 💬 "Lower the brightness on monitor 2."
-- 💬 "Show me the current input source."
-- 💬 "Set all monitors to brightness 50."
-- 💬 "Check what settings this monitor supports."
-
-The skill is available at [skills/asus-display-control/SKILL.md](skills/asus-display-control/SKILL.md). Copy or reference it from a compatible agent that supports local skill files or custom Markdown instructions and can run shell commands.
-
-### Compatible Agents
-
-- ✅ Any agent that supports custom Markdown skill files and shell command execution.
+- **Splendid presets** (Standard, Reading, Theater, Scenery, Game, sRGB, Darkroom,
+  Night View) with **per-preset memory** — tweak a preset's brightness/contrast/gains
+  and they're restored whenever you return to it, with minimal switching flash.
+- Live **Brightness, Contrast, Trace Free, Saturation, Hue, RGB gains, Shadow Boost,
+  ASCR**, and **Color Temp** (only shows the values your monitor actually supports).
+- **Compare** (press-and-hold to peek at the previous preset), **Reset**, and
+  **Import/Export** profiles.
+- **System tray** icon, **close-to-tray**, and **Start with Windows**.
+- **Scheduled preset switching:**
+  - *Fixed times* — e.g. 09:00 → Standard, 19:00 → Darkroom (wraps past midnight).
+  - *By daylight* — enter your latitude/longitude and it switches between a day preset
+    and a night preset at sunrise/sunset.
 
 ## ⚙️ Requirements
 
 - Windows 10/11.
-- An ASUS monitor with DDC/CI support.
-- DDC/CI enabled in the monitor OSD menu.
-- A display connection that passes DDC/CI, such as DisplayPort or HDMI.
+- An ASUS monitor with **DDC/CI** support, enabled in the monitor's OSD menu.
+- A display connection that passes DDC/CI (DisplayPort or HDMI).
+- The [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) for the
+  default (tiny) build. Windows will prompt to install it if it's missing. The
+  self-contained build bundles it and needs nothing extra.
 
-## 📚 Documentation
+## 📦 Install / build
 
-- [CLI Reference](CLI_REFERENCE.md)
-- [AI Agent Skill](skills/asus-display-control/SKILL.md)
-- [ASUS DisplayWidget Center](https://www.asus.com/content/monitor-software-osd-displaywidgetcenter/)
+Grab the latest [release](https://github.com/ctnkyaumt/asus-display-control/releases),
+or build from source:
 
-## 📄 License
+```powershell
+powershell -ExecutionPolicy Bypass -File csharp/build.ps1     # framework-dependent (~1.3 MB)
+# or:  csharp/build.ps1 -SelfContained                        # no .NET needed (~145 MB)
+```
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+The app appears in `csharp/publish/`. Run `ASUS-Display-Control.exe`. See
+[csharp/README.md](csharp/README.md) for developer/build notes and memory numbers.
+
+## ⌨️ Command line (optional)
+
+The underlying ASUS CLI (`dwc.exe`) is bundled with the app and can also be used on its
+own for scripting:
+
+```
+dwc.exe list                 # list connected ASUS monitors
+dwc.exe get brightness       # read a value
+dwc.exe set brightness 60    # set a value
+```
+
+Full command and property list: [CLI_REFERENCE.md](CLI_REFERENCE.md).
+
+## 📄 License & credits
+
+Fork of [ASUS-Display/asus-display-control](https://github.com/ASUS-Display/asus-display-control).
+Licensed under the Apache License, Version 2.0 — see [LICENSE](LICENSE).
