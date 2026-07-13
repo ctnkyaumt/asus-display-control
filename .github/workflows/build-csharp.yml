@@ -1,9 +1,12 @@
-name: Build C# App
+name: Build & Release
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+
+permissions:
+  contents: write   # required so the tagged build can create/update the GitHub Release
 
 jobs:
   build:
@@ -54,10 +57,24 @@ jobs:
             csharp/dist/ASUS-Display-Control-Setup.exe
             ASUS-Display-Control-portable.zip
 
-      - name: Attach to release
+      - name: Publish release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          name: ASUS Display Control ${{ github.ref_name }}
+          body: |
+            Native Windows app for controlling ASUS monitors — Splendid presets, color
+            controls, system tray, and scheduled preset switching.
+
+            **Downloads**
+            - `ASUS-Display-Control-Setup.exe` — installer (Start Menu shortcut, optional
+              desktop shortcut and start-with-Windows, uninstaller).
+            - `ASUS-Display-Control-portable.zip` — no install; unzip and run
+              `ASUS-Display-Control.exe`.
+
+            **Requires** the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+            (Windows will prompt to install it on first run if it is missing) and an ASUS
+            monitor with DDC/CI enabled in its OSD.
           files: |
             csharp/dist/ASUS-Display-Control-Setup.exe
             ASUS-Display-Control-portable.zip

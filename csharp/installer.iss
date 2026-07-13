@@ -15,7 +15,7 @@
 #define AppUrl "https://github.com/ctnkyaumt/asus-display-control"
 
 [Setup]
-AppId={{9F3C1A22-5D74-4E9B-A1C2-ASUSDWCCSHARP}
+AppId={{8B4E2A16-3C7D-4F9A-B1E5-6D2C8A9F0B34}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
