@@ -1,0 +1,63 @@
+name: Build C# App
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Extract bundled CLI
+        run: Expand-Archive -Path cli/windows/dwc_win.zip -DestinationPath cli/windows -Force
+        shell: pwsh
+
+      - name: Publish (framework-dependent, one folder)
+        run: >
+          dotnet publish csharp/AsusDisplayControl.csproj
+          -c Release -r win-x64 --self-contained false
+          -p:DebugType=none -o csharp/publish
+        shell: pwsh
+
+      - name: Derive version from tag
+        id: ver
+        run: |
+          $v = "${{ github.ref_name }}" -replace '^v',''
+          if (-not $v) { $v = "1.0.0" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Build installer (Inno Setup)
+        run: |
+          choco install innosetup --no-progress -y
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=${{ steps.ver.outputs.version }} csharp/installer.iss
+        shell: pwsh
+
+      - name: Package portable zip
+        run: Compress-Archive -Path csharp/publish/* -DestinationPath ASUS-Display-Control-portable.zip -Force
+        shell: pwsh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: asus-display-control
+          path: |
+            csharp/dist/ASUS-Display-Control-Setup.exe
+            ASUS-Display-Control-portable.zip
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            csharp/dist/ASUS-Display-Control-Setup.exe
+            ASUS-Display-Control-portable.zip

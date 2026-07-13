@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>AsusDisplayControl</RootNamespace>
+    <AssemblyName>ASUS-Display-Control</AssemblyName>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Product>ASUS Display Control</Product>
+    <Company>ctnkyaumt</Company>
+    <Deterministic>true</Deterministic>
+    <!-- Trimming is unsafe for WinForms; keep it off. Self-contained/single-file are
+         passed at publish time (see build.ps1) so plain `dotnet build`/`run` stay fast. -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Low-memory tuning: workstation GC + concurrent, drop ICU globalization data. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- App icon, embedded so the form + tray can load it at runtime. -->
+    <EmbeddedResource Include="icon.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Bundle the ASUS CLI next to the app (extracted from cli/windows/dwc_win.zip). -->
+    <Content Include="..\cli\windows\dwc\**\*.*"
+             Link="cli\windows\dwc\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

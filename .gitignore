@@ -10,3 +10,15 @@ __pycache__/
 .vscode/
 .idea/
 dwc_presets.json
+dwc_settings.json
+
+# .NET build outputs
+obj/
+csharp/publish/
+csharp/dist/
+
+# Python packaging outputs
+dist/
+build/
+build_pyi/
+*.egg-info/
