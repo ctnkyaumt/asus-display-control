@@ -19,8 +19,17 @@ WinForms GUI so you get a real control panel without ASUS DisplayWidget Center
 - **Splendid presets** (Standard, Reading, Theater, Scenery, Game, sRGB, Darkroom,
   Night View) with **per-preset memory** — tweak a preset's brightness/contrast/gains
   and they're restored whenever you return to it, with minimal switching flash.
-- Live **Brightness, Contrast, Trace Free, Saturation, Hue, RGB gains, Shadow Boost,
-  ASCR**, and **Color Temp** (only shows the values your monitor actually supports).
+- Live **Brightness, Contrast, Trace Free, Sharpness, Saturation, Hue, RGB gains,
+  RGB offsets, Shadow Boost, Blue Light Filter, ASCR**, and **Color Temp** (only shows
+  the values your monitor actually supports).
+- **System Setup** page — input source, auto input detect, OSD language/transparency/
+  timeout, power saving, power indicator, power-key and key locks, volume/mute, monitor
+  information (model, serial, firmware, usage hours), and reset mode/color/all.
+- **GamePlus & OSD** page — FPS counter, timer, crosshair, display alignment, plus an
+  **OSD remote**: a d-pad that drives the monitor's own menu, so settings with no CLI
+  property (Rest Reminder, Color Augmentation, Aspect Control, Motion Sync, Adaptive-Sync,
+  QuickFit) are reachable without reaching behind the panel.
+- Whatever your monitor doesn't answer is shown as *Unsupported* and greyed out.
 - **Compare** (press-and-hold to peek at the previous preset), **Reset**, and
   **Import/Export** profiles.
 - **System tray** icon, **close-to-tray**, and **Start with Windows**.

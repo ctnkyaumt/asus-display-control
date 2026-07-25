@@ -44,6 +44,51 @@ internal static class Dwc
         catch { return null; }
     }
 
+    /// <summary>
+    /// Read several properties at once. Uses dedicated threads rather than the thread pool: each
+    /// read blocks on a child process (~0.1s when supported, ~1.3s when the monitor rejects the
+    /// code) and a pool-based fan-out starves on thread injection. Parallelism buys little — the
+    /// DDC/CI bus serialises anyway — so the worker count stays low, and one batch runs at a time.
+    /// </summary>
+    public static Dictionary<string, int?> ProbeMany(IReadOnlyCollection<string> props, string monitorId, int workers = 2)
+    {
+        ProbeGate.Wait();
+        try
+        {
+            var results = new System.Collections.Concurrent.ConcurrentDictionary<string, int?>();
+            var queue = new System.Collections.Concurrent.ConcurrentQueue<string>(props);
+            RunWorkers(Math.Min(workers, props.Count),
+                       () => { while (queue.TryDequeue(out var p)) results[p] = GetInt(p, monitorId); });
+            return props.ToDictionary(p => p, p => results.GetValueOrDefault(p));
+        }
+        finally { ProbeGate.Release(); }
+    }
+
+    /// <summary>Write several properties, ignoring individual failures. Same threading rationale as <see cref="ProbeMany"/>.</summary>
+    public static void WriteMany(IReadOnlyCollection<(string prop, int value)> writes, string monitorId, int workers = 2)
+    {
+        var queue = new System.Collections.Concurrent.ConcurrentQueue<(string prop, int value)>(writes);
+        RunWorkers(Math.Min(workers, writes.Count), () =>
+        {
+            while (queue.TryDequeue(out var w))
+                try { Run("set", w.prop, w.value.ToString(), "--id", monitorId); } catch { }
+        });
+    }
+
+    private static void RunWorkers(int count, Action worker)
+    {
+        var threads = new List<Thread>();
+        for (int i = 0; i < count; i++)
+        {
+            var t = new Thread(() => worker()) { IsBackground = true };
+            t.Start();
+            threads.Add(t);
+        }
+        foreach (var t in threads) t.Join();
+    }
+
+    private static readonly SemaphoreSlim ProbeGate = new(1, 1);
+
     public record Monitor(string Id, string Model);
 
     /// <summary>Parse the `dwc list` table into monitors.</summary>

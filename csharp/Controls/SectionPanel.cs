@@ -31,6 +31,7 @@ internal sealed class SectionPanel : Panel
         // Punch a gap in the border and draw the title over it.
         using (var bg = new SolidBrush(BackColor))
             g.FillRectangle(bg, tx - 6, 6, size.Width + 12, size.Height);
-        TextRenderer.DrawText(g, _title, Theme.Subtitle, new Point(tx, 4), Theme.TextPrimary);
+        // NoPrefix: titles may contain "&" (e.g. "Input & OSD") and must not read it as a mnemonic.
+        TextRenderer.DrawText(g, _title, Theme.Subtitle, new Point(tx, 4), Theme.TextPrimary, TextFormatFlags.NoPrefix);
     }
 }

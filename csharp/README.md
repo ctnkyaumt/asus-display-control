@@ -5,10 +5,22 @@ CLI. Low memory, fast, flicker-free.
 
 ## Features
 
+- Three pages, picked from the sidebar: **Splendid** (picture), **System Setup**, and
+  **GamePlus & OSD**.
 - **Splendid presets** with per-preset memory — tweak a preset's brightness/contrast/
   gains and it's restored next time you return to it, with minimal switch flash.
-- Live **Brightness, Contrast, Trace Free, Saturation, Hue, RGB gains**, **Shadow Boost**,
-  **ASCR**, and capability-aware **Color Temp** (only shows codes the monitor supports).
+- Live **Brightness, Contrast, Trace Free, Sharpness, Saturation, Hue, RGB gains,
+  RGB offsets**, **Shadow Boost**, **Blue Light Filter**, **ASCR**, and capability-aware
+  **Color Temp** (only shows codes the monitor supports).
+- **System Setup**: input source, auto input detect, OSD language/transparency/timeout,
+  power saving, power indicator, key locks, volume/mute, monitor information (model,
+  serial, firmware, usage hours), and the three CLI resets (mode / color / all).
+- **GamePlus & OSD**: FPS counter, timer, crosshair, display alignment — plus an **OSD
+  remote** (EZOSD d-pad) that drives the monitor's own menu, which is the only way to
+  reach settings the CLI has no property for (Rest Reminder, Color Augmentation, Aspect
+  Control, Motion Sync, Adaptive-Sync, QuickFit).
+- Anything the monitor does not answer shows as *Unsupported* and is greyed out; system
+  properties are probed lazily (once per monitor) because rejected DDC reads cost ~1.3 s each.
 - **Compare** (press-and-hold), **Reset**, **Import/Export** profiles.
 - **System tray** icon, close-to-tray, and **Start with Windows**.
 - **Scheduled preset switching** (`Schedule…`):

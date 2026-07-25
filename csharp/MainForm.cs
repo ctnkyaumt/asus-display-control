@@ -1,21 +1,27 @@
-﻿using System.Collections.Concurrent;
-using System.Drawing;
+﻿using System.Drawing;
 using System.Text.Json;
 using System.Windows.Forms;
 
 namespace AsusDisplayControl;
 
-internal sealed class MainForm : Form
+internal sealed partial class MainForm : Form
 {
     // ---- constants -----------------------------------------------------------
     private const int PresetTransitionMs = 50; // settle after Splendid switch before corrective writes
     private const int PresetGainMs = 50;       // settle after ColorTemp before RGB gains
 
-    private static readonly string[] AllProps =
-        { "Splendid", "Brightness", "Contrast", "Overdrive", "ShadowBoost", "ASCR",
-          "Saturation", "Hue", "ColorTemp", "RedGain", "GreenGain", "BlueGain" };
+    /// <summary>Picture properties: re-read on every sync and remembered per Splendid preset.</summary>
+    private static readonly string[] PictureProps =
+        { "Splendid", "Brightness", "Contrast", "Overdrive", "Sharpness", "ShadowBoost", "ASCR",
+          "BlueLightFilter", "Saturation", "Hue", "ColorTemp", "RedGain", "GreenGain", "BlueGain",
+          "RedOffset", "GreenOffset", "BlueOffset" };
 
-    private static readonly string[] ShadowLevels = { "OFF", "Level 1", "Level 2", "Level 3" };
+    private static readonly (int code, string label)[] ShadowOptions =
+        { (0, "OFF"), (1, "Level 1"), (2, "Level 2"), (3, "Level 3") };
+
+    private static readonly (int code, string label)[] BlueLightOptions =
+        { (0, "OFF"), (1, "Level 1"), (2, "Level 2"), (3, "Level 3"), (4, "Level 4") };
+
     private static readonly string[] GainProps = { "RedGain", "GreenGain", "BlueGain" };
 
     private static readonly (int code, string label)[] TempMaster =
@@ -44,6 +50,15 @@ internal sealed class MainForm : Form
     private string[] _tempValues;
     private readonly AppSettings _settings;
 
+    // ---- system / GamePlus pages --------------------------------------------
+    private Dictionary<string, int?> _system = new();
+    private readonly HashSet<string> _systemProps = new();   // props that live on the System / GamePlus pages
+    private readonly HashSet<string> _systemLoaded = new();  // monitor IDs whose system props were probed
+    private Control _displayPage = null!, _systemPage = null!, _gamePlusPage = null!;
+    private readonly List<(Label nav, Control page)> _navItems = new();
+    private Label _infoLabel = null!;
+    private volatile bool _systemSyncing;
+
     // ---- scheduling ----------------------------------------------------------
     private ScheduleConfig _schedule;
     private System.Windows.Forms.Timer? _scheduleTimer;
@@ -58,15 +73,24 @@ internal sealed class MainForm : Form
     private bool _shownOnce, _reallyExit;
 
     // ---- controls ------------------------------------------------------------
-    private ComboBox _monitorCombo = null!, _shadowCombo = null!, _tempCombo = null!;
+    private ComboBox _monitorCombo = null!;
     private Label _status = null!;
-    private ToggleSwitch _ascr = null!, _startupSwitch = null!, _traySwitch = null!;
-    private ModernSlider _brightness = null!, _contrast = null!, _overdrive = null!,
-                         _saturation = null!, _hue = null!, _rGain = null!, _gGain = null!, _bGain = null!;
-    private Label _vBrightness = null!, _vContrast = null!, _vOverdrive = null!,
-                  _vSaturation = null!, _vHue = null!, _vR = null!, _vG = null!, _vB = null!;
+    private ToggleSwitch _startupSwitch = null!, _traySwitch = null!;
     private Button _compareBtn = null!;
     private readonly Dictionary<int, PresetCard> _cards = new();
+
+    // Property rows, keyed by CLI property name. Everything on a page is registered here,
+    // so syncing the UI is just "walk the rows and push the values in".
+    private sealed class OptionRow
+    {
+        public ComboBox Box = null!;
+        public int[] Codes = Array.Empty<int>();      // base value list
+        public string[] Labels = Array.Empty<string>();
+        public int[] Shown = Array.Empty<int>();      // what is currently in the combo
+    }
+    private readonly Dictionary<string, (ModernSlider slider, Label value)> _sliderRows = new();
+    private readonly Dictionary<string, OptionRow> _optionRows = new();
+    private readonly Dictionary<string, ToggleSwitch> _toggleRows = new();
 
     public MainForm(bool startMinimized)
     {
@@ -134,7 +158,11 @@ internal sealed class MainForm : Form
         _monitorCombo.Margin = new Padding(0, 0, 0, 12);
         _monitorCombo.SelectedIndexChanged += OnMonitorSelected;
 
-        var splendid = new Label { Text = "  Splendid", Font = Theme.Label, ForeColor = Theme.White, BackColor = Theme.Accent, Dock = DockStyle.Fill, Height = 30, TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(0, 2, 0, 5) };
+        var nav = new TableLayoutPanel { ColumnCount = 1, Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, BackColor = Theme.Sidebar, Margin = new Padding(0, 0, 0, 5) };
+        nav.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        nav.Controls.Add(MakeNavItem("Splendid", _displayPage));
+        nav.Controls.Add(MakeNavItem("System Setup", _systemPage));
+        nav.Controls.Add(MakeNavItem("GamePlus & OSD", _gamePlusPage));
 
         // Settings block
         _startupSwitch = new ToggleSwitch { BackColor = Theme.Sidebar };
@@ -156,7 +184,7 @@ internal sealed class MainForm : Form
         side.Controls.Add(logo, 0, 0);
         side.Controls.Add(selLbl, 0, 1);
         side.Controls.Add(_monitorCombo, 0, 2);
-        side.Controls.Add(splendid, 0, 3);
+        side.Controls.Add(nav, 0, 3);
         side.Controls.Add(new Panel { Dock = DockStyle.Fill, BackColor = Theme.Sidebar }, 0, 4); // spacer
         side.Controls.Add(settings, 0, 5);
         side.Controls.Add(_status, 0, 6);
@@ -170,7 +198,53 @@ internal sealed class MainForm : Form
         return side;
     }
 
+    /// <summary>Hosts the pages; the sidebar nav swaps which one is visible.</summary>
     private Control BuildMainPanel()
+    {
+        var host = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Main };
+        _displayPage = BuildDisplayPage();
+        _systemPage = BuildSystemPage();
+        _gamePlusPage = BuildGamePlusPage();
+        foreach (var page in new[] { _systemPage, _gamePlusPage, _displayPage })
+        {
+            page.Dock = DockStyle.Fill;
+            page.Visible = page == _displayPage;
+            host.Controls.Add(page);
+        }
+        return host;
+    }
+
+    private Label MakeNavItem(string text, Control page)
+    {
+        var l = new Label
+        {
+            Text = "  " + text,
+            Font = Theme.Label,
+            ForeColor = Theme.White,
+            BackColor = page == _displayPage ? Theme.Accent : Theme.Sidebar,
+            Dock = DockStyle.Fill,
+            Height = 30,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(0, 2, 0, 2),
+            Cursor = Cursors.Hand,
+            UseMnemonic = false,   // keep the "&" in "GamePlus & OSD"
+        };
+        l.Click += (_, _) => ShowPage(page);
+        _navItems.Add((l, page));
+        return l;
+    }
+
+    private void ShowPage(Control page)
+    {
+        foreach (var (nav, p) in _navItems)
+        {
+            nav.BackColor = p == page ? Theme.Accent : Theme.Sidebar;
+            p.Visible = p == page;
+        }
+        if (page != _displayPage) EnsureSystemLoaded();
+    }
+
+    private Control BuildDisplayPage()
     {
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Theme.Main, ColumnCount = 1, RowCount = 4, Padding = new Padding(15) };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -213,23 +287,13 @@ internal sealed class MainForm : Form
         var section = new SectionPanel("Image Settings") { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 10, 0) };
         var t = NewRowsTable();
         int r = 0;
-        (_brightness, _vBrightness) = AddSliderRow(t, r++, "Brightness", "Brightness");
-        (_contrast, _vContrast) = AddSliderRow(t, r++, "Contrast", "Contrast");
-        (_overdrive, _vOverdrive) = AddSliderRow(t, r++, "Trace Free", "Overdrive");
-
-        _shadowCombo = MakeCombo();
-        _shadowCombo.SelectedIndexChanged += (_, _) =>
-        {
-            if (_updatingUi || !_shadowCombo.Enabled) return;
-            int idx = _shadowCombo.SelectedIndex;
-            if (idx >= 0 && idx < 4) SetVcpThread("ShadowBoost", idx);
-        };
-        AddComboRow(t, r++, "Shadow Boost", _shadowCombo);
-
-        _ascr = new ToggleSwitch { BackColor = Theme.Main };
-        _ascr.Toggled += on => SetVcpThread("ASCR", on ? 1 : 0);
-        AddControlRow(t, r++, "ASCR", _ascr);
-
+        AddSliderRow(t, r++, "Brightness", "Brightness");
+        AddSliderRow(t, r++, "Contrast", "Contrast");
+        AddSliderRow(t, r++, "Trace Free", "Overdrive");
+        AddSliderRow(t, r++, "Sharpness", "Sharpness");
+        AddOptionRow(t, r++, "Shadow Boost", "ShadowBoost", ShadowOptions);
+        AddOptionRow(t, r++, "Blue Light Filter", "BlueLightFilter", BlueLightOptions);
+        AddToggleRow(t, r++, "ASCR", "ASCR");
         section.Controls.Add(t);
         return section;
     }
@@ -239,23 +303,15 @@ internal sealed class MainForm : Form
         var section = new SectionPanel("Color Settings") { Dock = DockStyle.Fill, Margin = new Padding(10, 0, 0, 0) };
         var t = NewRowsTable();
         int r = 0;
-        (_saturation, _vSaturation) = AddSliderRow(t, r++, "Saturation", "Saturation");
-        (_hue, _vHue) = AddSliderRow(t, r++, "Hue", "Hue");
-
-        _tempCombo = MakeCombo();
-        _tempCombo.SelectedIndexChanged += (_, _) =>
-        {
-            if (_updatingUi) return;
-            if (_tempCombo.SelectedItem is not string txt) return;
-            int idx = Array.IndexOf(_tempValues, txt);
-            if (idx >= 0) SetVcpThread("ColorTemp", _tempCodes[idx]);
-        };
-        AddComboRow(t, r++, "Color Temp.", _tempCombo);
-
-        (_rGain, _vR) = AddSliderRow(t, r++, "Red Gain", "RedGain");
-        (_gGain, _vG) = AddSliderRow(t, r++, "Green Gain", "GreenGain");
-        (_bGain, _vB) = AddSliderRow(t, r++, "Blue Gain", "BlueGain");
-
+        AddSliderRow(t, r++, "Saturation", "Saturation");
+        AddSliderRow(t, r++, "Hue", "Hue");
+        AddOptionRow(t, r++, "Color Temp.", "ColorTemp", TempMaster);
+        AddSliderRow(t, r++, "Red Gain", "RedGain");
+        AddSliderRow(t, r++, "Green Gain", "GreenGain");
+        AddSliderRow(t, r++, "Blue Gain", "BlueGain");
+        AddSliderRow(t, r++, "Red Offset", "RedOffset");
+        AddSliderRow(t, r++, "Green Offset", "GreenOffset");
+        AddSliderRow(t, r++, "Blue Offset", "BlueOffset");
         section.Controls.Add(t);
         return section;
     }
@@ -266,7 +322,8 @@ internal sealed class MainForm : Form
 
         var left = new FlowLayoutPanel { Dock = DockStyle.Left, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoSize = true, BackColor = Theme.Main };
         var reset = MakeButton("Reset Mode", Theme.Card, Theme.CardHover);
-        reset.Click += (_, _) => ResetThread();
+        reset.Click += (_, _) => ResetThread("reset-mode", "Reset Mode",
+            "Reset the current Splendid mode to its factory defaults?");
         _compareBtn = MakeButton("Compare Settings", Theme.Card, Theme.Accent);
         _compareBtn.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) StartCompare(); };
         _compareBtn.MouseUp += (_, e) => { if (e.Button == MouseButtons.Left) StopCompare(); };
@@ -302,44 +359,69 @@ internal sealed class MainForm : Form
         return t;
     }
 
-    private (ModernSlider, Label) AddSliderRow(TableLayoutPanel t, int row, string label, string prop)
+    private void AddSliderRow(TableLayoutPanel t, int row, string label, string prop, int max = 100, bool system = false)
     {
         var l = L(label, Theme.Label, Theme.TextPrimary, Theme.Main);
         l.Anchor = AnchorStyles.Left;
         l.Margin = new Padding(0, 8, 6, 8);
-        var slider = new ModernSlider { Dock = DockStyle.Fill, Margin = new Padding(4, 6, 4, 6) };
+        var slider = new ModernSlider { Dock = DockStyle.Fill, Margin = new Padding(4, 6, 4, 6), Maximum = max };
         var v = L("--", Theme.Value, Theme.TextMuted, Theme.Main);
         v.Anchor = AnchorStyles.Right;
         v.Margin = new Padding(6, 8, 0, 8);
         slider.ValueChanging += val => v.Text = val.ToString();
-        slider.ValueCommitted += val => SetVcpThread(prop, val);
+        slider.ValueCommitted += val => SetProp(prop, val);
         t.Controls.Add(l, 0, row);
         t.Controls.Add(slider, 1, row);
         t.Controls.Add(v, 2, row);
-        return (slider, v);
+        Register(prop, system);
+        _sliderRows[prop] = (slider, v);
     }
 
-    private void AddComboRow(TableLayoutPanel t, int row, string label, ComboBox combo)
+    private void AddOptionRow(TableLayoutPanel t, int row, string label, string prop,
+                              (int code, string label)[] options, bool system = false)
+    {
+        var combo = MakeCombo();
+        var entry = new OptionRow
+        {
+            Box = combo,
+            Codes = options.Select(o => o.code).ToArray(),
+            Labels = options.Select(o => o.label).ToArray(),
+        };
+        combo.SelectedIndexChanged += (_, _) =>
+        {
+            if (_updatingUi || !combo.Enabled) return;
+            int idx = combo.SelectedIndex;
+            if (idx >= 0 && idx < entry.Shown.Length) SetProp(prop, entry.Shown[idx]);
+        };
+        AddControlRow(t, row, label, combo, fill: true);
+        Register(prop, system);
+        _optionRows[prop] = entry;
+    }
+
+    private void AddToggleRow(TableLayoutPanel t, int row, string label, string prop, bool system = false)
+    {
+        var sw = new ToggleSwitch { BackColor = Theme.Main };
+        sw.Toggled += on => SetProp(prop, on ? 1 : 0);
+        AddControlRow(t, row, label, sw);
+        Register(prop, system);
+        _toggleRows[prop] = sw;
+    }
+
+    private void Register(string prop, bool system)
+    {
+        if (system) _systemProps.Add(prop);
+    }
+
+    private void AddControlRow(TableLayoutPanel t, int row, string label, Control ctrl, bool fill = false)
     {
         var l = L(label, Theme.Label, Theme.TextPrimary, Theme.Main);
         l.Anchor = AnchorStyles.Left;
         l.Margin = new Padding(0, 10, 6, 10);
-        combo.Dock = DockStyle.Fill;
-        combo.Margin = new Padding(4, 8, 0, 8);
-        t.Controls.Add(l, 0, row);
-        t.Controls.Add(combo, 1, row);
-        t.SetColumnSpan(combo, 2);
-    }
-
-    private void AddControlRow(TableLayoutPanel t, int row, string label, Control ctrl)
-    {
-        var l = L(label, Theme.Label, Theme.TextPrimary, Theme.Main);
-        l.Anchor = AnchorStyles.Left;
-        l.Margin = new Padding(0, 10, 6, 10);
-        ctrl.Anchor = AnchorStyles.Left;
-        ctrl.Margin = new Padding(4, 8, 0, 8);
+        if (fill) { ctrl.Dock = DockStyle.Fill; ctrl.Margin = new Padding(4, 8, 0, 8); }
+        else { ctrl.Anchor = AnchorStyles.Left; ctrl.Margin = new Padding(4, 8, 0, 8); }
         t.Controls.Add(l, 0, row);
         t.Controls.Add(ctrl, 1, row);
+        if (fill) t.SetColumnSpan(ctrl, 2);
     }
 
     private Control MakeToggleRow(string text, ToggleSwitch sw)
@@ -517,7 +599,14 @@ internal sealed class MainForm : Form
         if (_updatingUi) return;
         if (_monitorCombo.SelectedItem is not string txt || txt.Length == 0) return;
         _selectedMonitorId = txt.Split(" - ")[0];
+
+        // The system pages belong to the previous monitor — blank them until re-probed.
+        _system = new();
+        _infoLabel.Text = "--";
+        UpdateRows(system: true);
+
         QuerySettingsThread();
+        if (!_displayPage.Visible) EnsureSystemLoaded();
     }
 
     private void QuerySettingsThread()
@@ -537,12 +626,11 @@ internal sealed class MainForm : Form
 
         if (!_supportedProps.ContainsKey(mId))
         {
-            // First sync for this monitor: probe every property in parallel.
-            var results = new ConcurrentDictionary<string, int?>();
-            Task.WaitAll(AllProps.Select(p => Task.Run(() => results[p] = Dwc.GetInt(p, mId))).ToArray());
+            // First sync for this monitor: probe every property.
+            var results = Dwc.ProbeMany(PictureProps, mId);
 
             var supported = new List<string>();
-            foreach (var p in AllProps)
+            foreach (var p in PictureProps)
             {
                 var v = results.GetValueOrDefault(p);
                 settings[p] = v;
@@ -562,7 +650,7 @@ internal sealed class MainForm : Form
                 }
                 settings[p] = Dwc.GetInt(p, mId);
             }
-            foreach (var p in AllProps)
+            foreach (var p in PictureProps)
                 if (!settings.ContainsKey(p)) settings[p] = null;
         }
 
@@ -625,38 +713,51 @@ internal sealed class MainForm : Form
         var active = _current.GetValueOrDefault("Splendid");
         foreach (var kv in _cards) kv.Value.SetActive(kv.Key == active);
 
-        UpdateSlider(_brightness, _vBrightness, "Brightness");
-        UpdateSlider(_contrast, _vContrast, "Contrast");
-        UpdateSlider(_overdrive, _vOverdrive, "Overdrive");
-
-        var sb = _current.GetValueOrDefault("ShadowBoost");
-        if (sb.HasValue && sb.Value >= 0 && sb.Value < 4) SetComboItems(_shadowCombo, ShadowLevels, sb.Value);
-        else SetComboUnsupported(_shadowCombo);
-
-        var ascr = _current.GetValueOrDefault("ASCR");
-        if (ascr.HasValue) { _ascr.Active = true; _ascr.SetValueSilent(ascr.Value == 1); }
-        else { _ascr.SetValueSilent(false); _ascr.Active = false; }
-
-        UpdateSlider(_saturation, _vSaturation, "Saturation");
-        UpdateSlider(_hue, _vHue, "Hue");
-
         RebuildTempOptions();
-        var ct = _current.GetValueOrDefault("ColorTemp");
-        int idx = ct.HasValue ? Array.IndexOf(_tempCodes, ct.Value) : -1;
-        if (idx >= 0) SetComboItems(_tempCombo, _tempValues, idx);
-        else SetComboUnsupported(_tempCombo);
-
-        UpdateSlider(_rGain, _vR, "RedGain");
-        UpdateSlider(_gGain, _vG, "GreenGain");
-        UpdateSlider(_bGain, _vB, "BlueGain");
+        UpdateRows(system: false);
 
         // Apply the schedule once the first real sync has populated the current preset.
         if (!_firstSyncDone) { _firstSyncDone = true; EvaluateSchedule(); }
     }
 
-    private void UpdateSlider(ModernSlider slider, Label label, string prop)
+    /// <summary>Push the current values into every registered row of one page group.</summary>
+    private void UpdateRows(bool system)
     {
-        var v = _current.GetValueOrDefault(prop);
+        var src = system ? _system : _current;
+        foreach (var (prop, row) in _sliderRows)
+            if (_systemProps.Contains(prop) == system) UpdateSlider(row.slider, row.value, src.GetValueOrDefault(prop));
+        foreach (var (prop, row) in _optionRows)
+            if (_systemProps.Contains(prop) == system) UpdateOption(row, src.GetValueOrDefault(prop));
+        foreach (var (prop, sw) in _toggleRows)
+            if (_systemProps.Contains(prop) == system) UpdateToggle(sw, src.GetValueOrDefault(prop));
+    }
+
+    private void UpdateOption(OptionRow row, int? value)
+    {
+        if (!value.HasValue) { row.Shown = Array.Empty<int>(); SetComboUnsupported(row.Box); return; }
+
+        var codes = row.Codes.ToList();
+        var labels = row.Labels.ToList();
+        int idx = codes.IndexOf(value.Value);
+        if (idx < 0)
+        {
+            // Monitor reports a level outside the documented list — show it rather than hide it.
+            codes.Add(value.Value);
+            labels.Add($"Value {value.Value}");
+            idx = codes.Count - 1;
+        }
+        row.Shown = codes.ToArray();
+        SetComboItems(row.Box, labels.ToArray(), idx);
+    }
+
+    private static void UpdateToggle(ToggleSwitch sw, int? value)
+    {
+        if (value.HasValue) { sw.Active = true; sw.SetValueSilent(value.Value == 1); }
+        else { sw.SetValueSilent(false); sw.Active = false; }
+    }
+
+    private void UpdateSlider(ModernSlider slider, Label label, int? v)
+    {
         if (v.HasValue)
         {
             slider.Active = true;
@@ -681,6 +782,7 @@ internal sealed class MainForm : Form
             ? c : TempMaster.Select(t => t.code).ToList();
         _tempCodes = codes.Where(map.ContainsKey).ToArray();
         _tempValues = _tempCodes.Select(k => map[k]).ToArray();
+        if (_optionRows.TryGetValue("ColorTemp", out var row)) { row.Codes = _tempCodes; row.Labels = _tempValues; }
     }
 
     private void SetComboItems(ComboBox cb, string[] items, int sel)
@@ -695,11 +797,13 @@ internal sealed class MainForm : Form
         _updatingUi = false;
     }
 
-    private void SetComboUnsupported(ComboBox cb)
+    private void SetComboUnsupported(ComboBox cb) => SetComboPlaceholder(cb, "Unsupported");
+
+    private void SetComboPlaceholder(ComboBox cb, string text)
     {
         _updatingUi = true;
         cb.Items.Clear();
-        cb.Items.Add("Unsupported");
+        cb.Items.Add(text);
         cb.SelectedIndex = 0;
         cb.Enabled = false;
         _updatingUi = false;
@@ -708,6 +812,13 @@ internal sealed class MainForm : Form
     // ==========================================================================
     // SET OPERATIONS
     // ==========================================================================
+    /// <summary>Route a row edit: picture props are remembered per preset, system props are not.</summary>
+    private void SetProp(string prop, int val)
+    {
+        if (_systemProps.Contains(prop)) SetSystemThread(prop, val);
+        else SetVcpThread(prop, val);
+    }
+
     private void SetVcpThread(string prop, int val)
     {
         if (_selectedMonitorId == null) { SetStatus("Error: No monitor selected."); return; }
@@ -747,10 +858,8 @@ internal sealed class MainForm : Form
 
     private void WritePropsParallel(Dictionary<string, int> props)
     {
-        Task.WaitAll(props.Select(kv => Task.Run(() =>
-        {
-            try { Dwc.Run("set", kv.Key, kv.Value.ToString(), "--id", _selectedMonitorId!); } catch { }
-        })).ToArray());
+        if (props.Count == 0) return;
+        Dwc.WriteMany(props.Select(kv => (kv.Key, kv.Value)).ToArray(), _selectedMonitorId!);
     }
 
     private void ApplyPresetSettingsParallel(int val)
@@ -884,23 +993,29 @@ internal sealed class MainForm : Form
     // ==========================================================================
     // RESET / IMPORT / EXPORT
     // ==========================================================================
-    private void ResetThread()
+    /// <summary>kind is one of the CLI reset commands: reset-all, reset-color, reset-mode.</summary>
+    private void ResetThread(string kind, string title, string question)
     {
         if (_selectedMonitorId == null) { SetStatus("Error: No monitor selected."); return; }
         if (_isSyncing || _isComparing) return;
-        if (MessageBox.Show(this, "Are you sure you want to reset the current display settings to factory default?",
-                "Reset Mode", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        if (MessageBox.Show(this, question, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         _isSyncing = true;
         SetStatus("Resetting monitor settings...");
         Task.Run(() =>
         {
             try
             {
-                var preset = _current.GetValueOrDefault("Splendid");
-                if (preset.HasValue && _presetMemory.Remove(preset.Value)) AppConfig.SavePresets(_presetMemory);
-                Dwc.Run("reset-all", "--id", _selectedMonitorId!);
+                // The monitor forgets the tweaks, so drop the matching preset memory too.
+                if (kind == "reset-all") { _presetMemory.Clear(); AppConfig.SavePresets(_presetMemory); }
+                else
+                {
+                    var preset = _current.GetValueOrDefault("Splendid");
+                    if (preset.HasValue && _presetMemory.Remove(preset.Value)) AppConfig.SavePresets(_presetMemory);
+                }
+                Dwc.Run(kind, "--id", _selectedMonitorId!);
                 Thread.Sleep(2000);
                 QuerySettings();
+                if (kind == "reset-all") { _systemLoaded.Remove(_selectedMonitorId!); QuerySystemSettings(); }
             }
             catch (Exception e) { SetStatus($"Error: {e.Message}"); _isSyncing = false; }
         });
