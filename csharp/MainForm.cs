@@ -1123,7 +1123,9 @@ internal sealed partial class MainForm : Form
                 if (kind == "reset-all") { _presetMemory.Clear(); AppConfig.SavePresets(_presetMemory); _userPresetActive = false; }
                 else
                 {
-                    var preset = _current.GetValueOrDefault("Splendid");
+                    // ActivePreset(), not the reported mode: with the User preset active the
+                    // monitor still reports its base mode, whose memory is not the one to drop.
+                    var preset = ActivePreset();
                     if (preset.HasValue && _presetMemory.Remove(preset.Value)) AppConfig.SavePresets(_presetMemory);
                 }
                 Dwc.Run(kind, "--id", _selectedMonitorId!);

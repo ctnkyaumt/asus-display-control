@@ -37,7 +37,22 @@ CLI. Low memory, fast, flicker-free.
   - Switches only when the scheduled target changes, so it never fights a manual choice.
   - Runs while the app is open — pair with *Start with Windows* + tray for set-and-forget.
 
-Presets/settings/schedule live in `%APPDATA%\ASUSDisplayControl\`.
+Settings, presets, schedule and per-app rules live in `%APPDATA%\ASUSDisplayControl\`
+(`dwc_settings.json`, `dwc_presets.json`, `dwc_schedule.json`, `dwc_apptweaks.json`).
+
+## Preset memory vs. factory defaults
+
+There is no built-in table of factory defaults — the app snapshots a preset's current
+values the first time it sees that preset and writes them back on every later switch. Two
+consequences worth knowing when reading the code:
+
+- Whatever the monitor happened to hold at first sight becomes that preset's baseline, so
+  a preset the user had already tuned is remembered tuned, not factory.
+- Which properties are genuinely per-preset is the panel's business. A VA24EHF keeps
+  brightness and colour temperature per Splendid mode (Standard 90/6500K, Reading 25/7500K,
+  Darkroom 0, Scenery and sRGB 100, contrast 80 throughout) but has a single global set of
+  RGB gains (factory 100/100/100); re-writing them per preset is what makes them feel
+  per-preset. `reset-mode` restores the mode but not colour — `reset-color` does that.
 
 ## Run / develop
 
