@@ -12,6 +12,9 @@ internal sealed class SectionPanel : Panel
     {
         _title = title;
         DoubleBuffered = true;
+        // ResizeRedraw: the border and title are drawn relative to the panel's size, so a
+        // resize must repaint the whole panel — without it the old frame is left behind.
+        SetStyle(ControlStyles.ResizeRedraw, true);
         BackColor = Theme.Main;
         // Leave room at the top for the title, and pad the inner content.
         Padding = new Padding(16, 36, 16, 16);

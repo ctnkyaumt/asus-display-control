@@ -52,7 +52,7 @@ internal sealed class ToggleSwitch : Control
 
         const int w = 44, h = 22;
         Color track = !_active ? Theme.TroughDisabled : (_value ? Theme.Accent : Theme.Trough);
-        Color knob = !_active ? Theme.FillDisabled : Theme.White;
+        Color knob = !_active ? Theme.FillDisabled : Theme.ForeOn(track);
 
         // Capsule track
         using (var tb = new SolidBrush(track))

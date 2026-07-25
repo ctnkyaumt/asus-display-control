@@ -174,9 +174,9 @@ internal sealed class ScheduleForm : Form
     private Panel MakeRuleRow(string time, int presetCode)
     {
         var row = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoSize = true, BackColor = Theme.Main, Margin = new Padding(0, 0, 0, 4) };
-        var tb = new MaskedTextBox { Mask = "00:00", Text = NormalizeTime(time), Width = 52, BackColor = Theme.Trough, ForeColor = Theme.White, BorderStyle = BorderStyle.FixedSingle, Font = Theme.Value, Margin = new Padding(0, 2, 6, 2) };
+        var tb = new MaskedTextBox { Mask = "00:00", Text = NormalizeTime(time), Width = 52, BackColor = Theme.Trough, ForeColor = Theme.ForeOn(Theme.Trough), BorderStyle = BorderStyle.FixedSingle, Font = Theme.Value, Margin = new Padding(0, 2, 6, 2) };
         var cb = MakePresetCombo(presetCode); cb.Width = 140;
-        var rm = new Button { Text = "✕", Width = 28, Height = 24, FlatStyle = FlatStyle.Flat, BackColor = Theme.Card, ForeColor = Theme.White, Margin = new Padding(6, 2, 0, 2) };
+        var rm = new Button { Text = "✕", Width = 28, Height = 24, FlatStyle = FlatStyle.Flat, BackColor = Theme.Card, ForeColor = Theme.ForeOn(Theme.Card), Margin = new Padding(6, 2, 0, 2) };
         rm.FlatAppearance.BorderSize = 0;
         rm.Click += (_, _) => { _rulesPanel.Controls.Remove(row); row.Dispose(); };
         row.Controls.Add(tb);
@@ -189,26 +189,8 @@ internal sealed class ScheduleForm : Form
 
     private ComboBox MakePresetCombo(int code)
     {
-        var cb = new ComboBox
-        {
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            FlatStyle = FlatStyle.Flat,
-            BackColor = Theme.Trough,
-            ForeColor = Theme.White,
-            Font = Theme.Muted,
-            DrawMode = DrawMode.OwnerDrawFixed,
-            Width = 140,
-            Margin = new Padding(0, 2, 0, 2),
-        };
+        var cb = new ThemedCombo { Width = 140, Margin = new Padding(0, 2, 0, 2) };
         cb.Items.AddRange(_presetNames);
-        cb.DrawItem += (s, e) =>
-        {
-            if (e.Index < 0) return;
-            var combo = (ComboBox)s!;
-            bool sel = (e.State & DrawItemState.Selected) != 0;
-            using (var b = new SolidBrush(sel ? Theme.Accent : Theme.Trough)) e.Graphics.FillRectangle(b, e.Bounds);
-            TextRenderer.DrawText(e.Graphics, combo.Items[e.Index]?.ToString() ?? "", combo.Font, e.Bounds, Theme.White, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
-        };
         int idx = Array.IndexOf(_presetCodes, code);
         cb.SelectedIndex = idx >= 0 ? idx : 0;
         return cb;
@@ -219,7 +201,7 @@ internal sealed class ScheduleForm : Form
         Text = text,
         Width = 90,
         BackColor = Theme.Trough,
-        ForeColor = Theme.White,
+        ForeColor = Theme.ForeOn(Theme.Trough),
         BorderStyle = BorderStyle.FixedSingle,
         Font = Theme.Value,
         Margin = new Padding(0, 2, 12, 2),
@@ -244,7 +226,7 @@ internal sealed class ScheduleForm : Form
         {
             Text = text,
             Font = Theme.Label,
-            ForeColor = Theme.White,
+            ForeColor = Theme.ForeOn(bg),
             BackColor = bg,
             FlatStyle = FlatStyle.Flat,
             AutoSize = false,

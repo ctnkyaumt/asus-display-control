@@ -56,7 +56,7 @@ internal sealed class ModernSlider : Control
 
         Color trough = _active ? Theme.Trough : Theme.TroughDisabled;
         Color fill = _active ? Theme.Accent : Theme.FillDisabled;
-        Color knob = _active ? Theme.White : Theme.KnobDisabled;
+        Color knob = _active ? Theme.ForeOn(Theme.Trough) : Theme.KnobDisabled;
 
         // Background track
         using (var pen = new Pen(trough, TrackW) { StartCap = LineCap.Round, EndCap = LineCap.Round })

@@ -9,6 +9,20 @@ internal sealed class AppSettings
 {
     public bool MinimizeToTray { get; set; } = true;
     public bool StartMinimized { get; set; } = false;
+    public bool LightTheme { get; set; } = false;
+}
+
+/// <summary>One per-app rule: when <see cref="Process"/> is in the foreground, use <see cref="Preset"/>.</summary>
+internal sealed class AppTweakRule
+{
+    public string Process { get; set; } = "";
+    public int Preset { get; set; }
+}
+
+internal sealed class AppTweakConfig
+{
+    public bool Enabled { get; set; }
+    public List<AppTweakRule> Rules { get; set; } = new();
 }
 
 /// <summary>App-wide constants, paths, persistence and the Windows startup toggle.</summary>
@@ -28,6 +42,7 @@ internal static class AppConfig
     public static string SettingsPath => Path.Combine(DataDir, "dwc_settings.json");
     public static string PresetsPath => Path.Combine(DataDir, "dwc_presets.json");
     public static string SchedulePath => Path.Combine(DataDir, "dwc_schedule.json");
+    public static string TweaksPath => Path.Combine(DataDir, "dwc_apptweaks.json");
 
     private static string InitDataDir()
     {
@@ -90,6 +105,24 @@ internal static class AppConfig
     public static void SaveSchedule(ScheduleConfig schedule)
     {
         try { File.WriteAllText(SchedulePath, JsonSerializer.Serialize(schedule, JsonOpts)); }
+        catch { }
+    }
+
+    // ---- per-app tweaks -------------------------------------------------------
+    public static AppTweakConfig LoadTweaks()
+    {
+        try
+        {
+            if (File.Exists(TweaksPath))
+                return JsonSerializer.Deserialize<AppTweakConfig>(File.ReadAllText(TweaksPath), JsonOpts) ?? new AppTweakConfig();
+        }
+        catch { }
+        return new AppTweakConfig();
+    }
+
+    public static void SaveTweaks(AppTweakConfig tweaks)
+    {
+        try { File.WriteAllText(TweaksPath, JsonSerializer.Serialize(tweaks, JsonOpts)); }
         catch { }
     }
 

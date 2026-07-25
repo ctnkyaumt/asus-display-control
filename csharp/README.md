@@ -5,10 +5,17 @@ CLI. Low memory, fast, flicker-free.
 
 ## Features
 
-- Three pages, picked from the sidebar: **Splendid** (picture), **System Setup**, and
-  **GamePlus & OSD**.
+- Four pages, picked from the sidebar: **Splendid** (picture), **System Setup**,
+  **GamePlus & OSD**, and **Per-App Tweak**.
 - **Splendid presets** with per-preset memory — tweak a preset's brightness/contrast/
   gains and it's restored next time you return to it, with minimal switch flash.
+- A **User** preset that the hardware does not have: it applies a base Splendid mode and
+  then the values you tuned into it (`BaseSplendid` in `dwc_presets.json`).
+- **Per-App Tweak** — a foreground-window watcher (1 s tick) maps a process name to a
+  preset and restores the previous preset when no rule matches. Rules live in
+  `dwc_apptweaks.json`.
+- **Dark / light theme**, toggled in the sidebar. Controls capture palette colours when
+  they are built, so switching rebuilds the control tree and pushes the cached values back.
 - Live **Brightness, Contrast, Trace Free, Sharpness, Saturation, Hue, RGB gains,
   RGB offsets**, **Shadow Boost**, **Blue Light Filter**, **ASCR**, and capability-aware
   **Color Temp** (only shows codes the monitor supports).

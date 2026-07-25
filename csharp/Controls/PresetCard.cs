@@ -25,7 +25,7 @@ internal sealed class PresetCard : Panel
         {
             Text = glyph,
             Font = Theme.CardIcon,
-            ForeColor = Theme.White,
+            ForeColor = Theme.ForeOn(Theme.Card),
             BackColor = Theme.Card,
             Dock = DockStyle.Top,
             Height = 26,
@@ -35,7 +35,7 @@ internal sealed class PresetCard : Panel
         {
             Text = text,
             Font = Theme.CardText,
-            ForeColor = Theme.White,
+            ForeColor = Theme.ForeOn(Theme.Card),
             BackColor = Theme.Card,
             Dock = DockStyle.Top,
             Height = 18,
@@ -74,5 +74,6 @@ internal sealed class PresetCard : Panel
         BackColor = c;
         _icon.BackColor = c;
         _text.BackColor = c;
+        _icon.ForeColor = _text.ForeColor = Theme.ForeOn(c);
     }
 }

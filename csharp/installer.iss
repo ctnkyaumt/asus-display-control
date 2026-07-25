@@ -7,7 +7,7 @@
 ; Version override from CI:  iscc /DAppVersion=1.2.3 csharp\installer.iss
 
 #ifndef AppVersion
-  #define AppVersion "2.0.0"
+  #define AppVersion "2.1.0"
 #endif
 #define AppName "ASUS Display Control"
 #define AppPublisher "ctnkyaumt"

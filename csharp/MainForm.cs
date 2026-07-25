@@ -30,11 +30,18 @@ internal sealed partial class MainForm : Form
         (7, "8200K"), (8, "9300K (Cool)"), (9, "10000K"), (11, "User"),
     };
 
+    /// <summary>
+    /// Not a monitor mode: Splendid has no User slot, so this is the app's own preset. It
+    /// rides on top of a base Splendid mode and keeps its own remembered values.
+    /// </summary>
+    public const int UserPresetCode = 100;
+    private const string BaseModeKey = "BaseSplendid";
+
     private static readonly (string name, int glyph, int val)[] PresetDefs =
     {
         ("Standard", 0xE7F4, 4), ("Reading", 0xE82F, 7), ("Theater", 0xE8B2, 1),
         ("Scenery", 0xEB9F, 2), ("Game", 0xE7FC, 5), ("sRGB", 0xE790, 3),
-        ("Darkroom", 0xEA80, 8), ("Night View", 0xEC46, 6),
+        ("Darkroom", 0xEA80, 8), ("Night View", 0xEC46, 6), ("User", 0xE713, UserPresetCode),
     };
 
     // ---- state ---------------------------------------------------------------
@@ -65,6 +72,17 @@ internal sealed partial class MainForm : Form
     private int? _lastScheduledPreset;
     private bool _firstSyncDone;
 
+    // ---- per-app tweak -------------------------------------------------------
+    private AppTweakConfig _tweaks;
+    private System.Windows.Forms.Timer? _tweakTimer;
+    private string? _foregroundApp;
+    private int? _tweakBasePreset;   // preset to fall back to when no rule matches
+    private bool _tweakApplied;
+
+    /// <summary>True while the app's own User preset is the active one (the monitor has no such mode).</summary>
+    private bool _userPresetActive;
+    private int? _compareCard;   // tile to highlight while press-and-hold compare is running
+
     // ---- tray / window -------------------------------------------------------
     private readonly Icon _appIcon;
     private NotifyIcon? _tray;
@@ -75,7 +93,9 @@ internal sealed partial class MainForm : Form
     // ---- controls ------------------------------------------------------------
     private ComboBox _monitorCombo = null!;
     private Label _status = null!;
-    private ToggleSwitch _startupSwitch = null!, _traySwitch = null!;
+    private ToggleSwitch _startupSwitch = null!, _traySwitch = null!, _themeSwitch = null!;
+    private List<Dwc.Monitor> _monitors = new();
+    private bool _rebuilding;
     private Button _compareBtn = null!;
     private readonly Dictionary<int, PresetCard> _cards = new();
 
@@ -98,20 +118,28 @@ internal sealed partial class MainForm : Form
         _settings = AppConfig.LoadSettings();
         _schedule = AppConfig.LoadSchedule();
         _presetMemory = AppConfig.LoadPresets();
+        _tweaks = AppConfig.LoadTweaks();
         _appIcon = AppConfig.LoadIcon();
         _tempCodes = TempMaster.Select(t => t.code).ToArray();
         _tempValues = TempMaster.Select(t => t.label).ToArray();
 
+        Theme.Apply(!_settings.LightTheme);
         BuildUi();
         Icon = _appIcon;
         SetupTray();
         _ = Handle;                 // force handle creation so BeginInvoke works while hidden
+        ApplyTitleBarTheme();
         DetectMonitors();
 
         // Re-check the schedule every minute (switches are applied on the UI thread).
         _scheduleTimer = new System.Windows.Forms.Timer { Interval = 60_000 };
         _scheduleTimer.Tick += (_, _) => EvaluateSchedule();
         _scheduleTimer.Start();
+
+        // Watch the foreground window for per-app preset rules.
+        _tweakTimer = new System.Windows.Forms.Timer { Interval = 1_000 };
+        _tweakTimer.Tick += (_, _) => EvaluateAppTweak();
+        _tweakTimer.Start();
     }
 
     // ==========================================================================
@@ -120,17 +148,73 @@ internal sealed partial class MainForm : Form
     private void BuildUi()
     {
         Text = "ASUS Display Control Panel";
-        ClientSize = new Size(1100, 680);
+        if (!_rebuilding)
+        {
+            ClientSize = new Size(1100, 680);
+            StartPosition = FormStartPosition.CenterScreen;
+        }
         MinimumSize = new Size(1016, 679);
         BackColor = Theme.Main;
         Font = new Font("Segoe UI", 9f);
-        StartPosition = FormStartPosition.CenterScreen;
         DoubleBuffered = true;
 
         var main = BuildMainPanel();
         var sidebar = BuildSidebar();
         Controls.Add(main);
         Controls.Add(sidebar);      // added last -> docks first (reserves the left column)
+    }
+
+    /// <summary>
+    /// Switch palettes. Controls capture their colours when built, so the cheapest correct
+    /// answer is to throw the tree away and build it again, then push the cached values back.
+    /// </summary>
+    private void ApplyTheme(bool light)
+    {
+        _settings.LightTheme = light;
+        AppConfig.SaveSettings(_settings);
+
+        int page = _navItems.FindIndex(n => n.page.Visible);
+        _rebuilding = true;
+        SuspendLayout();
+        var old = Controls.Cast<Control>().ToArray();
+        Controls.Clear();
+        foreach (var c in old) c.Dispose();
+
+        _sliderRows.Clear();
+        _optionRows.Clear();
+        _toggleRows.Clear();
+        _systemProps.Clear();
+        _cards.Clear();
+        _navItems.Clear();
+        _tweakRows.Clear();
+
+        Theme.Apply(dark: !light);
+        BuildUi();
+        ResumeLayout(true);
+        _rebuilding = false;
+        ApplyTitleBarTheme();
+
+        // Repopulate from the values we already hold — no monitor round-trip needed.
+        RestoreMonitorList();
+        RebuildTempOptions();
+        UpdateRows(system: false);
+        UpdateRows(system: true);
+        MarkSystemRowsPending();
+        UpdateActiveCard();
+        BuildTweakRows();
+        if (page > 0 && page < _navItems.Count) ShowPage(_navItems[page].page);
+        SetStatus(light ? "Light theme applied." : "Dark theme applied.");
+    }
+
+    /// <summary>Match the window frame to the palette (Windows 10 2004+ / 11).</summary>
+    private void ApplyTitleBarTheme()
+    {
+        try
+        {
+            int dark = Theme.IsDark ? 1 : 0;
+            _ = Native.DwmSetWindowAttribute(Handle, 20 /* USE_IMMERSIVE_DARK_MODE */, ref dark, sizeof(int));
+        }
+        catch { }
     }
 
     private Control BuildSidebar()
@@ -148,7 +232,7 @@ internal sealed partial class MainForm : Form
         // Logo row
         var logo = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Theme.Sidebar, Margin = new Padding(0, 6, 0, 12) };
         logo.Controls.Add(new Label { Text = "🖥️", Font = Theme.LogoIcon, ForeColor = Theme.Accent, BackColor = Theme.Sidebar, AutoSize = true, Margin = new Padding(0, 0, 8, 0) });
-        logo.Controls.Add(new Label { Text = "ASUS\nDisplayWidget", Font = Theme.LogoText, ForeColor = Theme.White, BackColor = Theme.Sidebar, AutoSize = true });
+        logo.Controls.Add(new Label { Text = "ASUS\nDisplayWidget", Font = Theme.LogoText, ForeColor = Theme.TextPrimary, BackColor = Theme.Sidebar, AutoSize = true });
 
         var selLbl = L("SELECT MONITOR", Theme.Muted, Theme.TextMuted, Theme.Sidebar);
         selLbl.Margin = new Padding(0, 8, 0, 2);
@@ -163,6 +247,7 @@ internal sealed partial class MainForm : Form
         nav.Controls.Add(MakeNavItem("Splendid", _displayPage));
         nav.Controls.Add(MakeNavItem("System Setup", _systemPage));
         nav.Controls.Add(MakeNavItem("GamePlus & OSD", _gamePlusPage));
+        nav.Controls.Add(MakeNavItem("Per-App Tweak", _tweakPage));
 
         // Settings block
         _startupSwitch = new ToggleSwitch { BackColor = Theme.Sidebar };
@@ -173,11 +258,17 @@ internal sealed partial class MainForm : Form
         _traySwitch.SetValueSilent(_settings.MinimizeToTray);
         _traySwitch.Toggled += on => { _settings.MinimizeToTray = on; AppConfig.SaveSettings(_settings); };
 
+        _themeSwitch = new ToggleSwitch { BackColor = Theme.Sidebar };
+        _themeSwitch.SetValueSilent(_settings.LightTheme);
+        // Rebuilding disposes this switch, so hand the work to the message loop first.
+        _themeSwitch.Toggled += on => BeginInvoke(() => ApplyTheme(on));
+
         var settings = new TableLayoutPanel { ColumnCount = 1, Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, BackColor = Theme.Sidebar, Margin = new Padding(0, 8, 0, 4) };
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         settings.Controls.Add(L("SETTINGS", Theme.Muted, Theme.TextMuted, Theme.Sidebar));
         settings.Controls.Add(MakeToggleRow("Start with Windows", _startupSwitch));
         settings.Controls.Add(MakeToggleRow("Close to tray", _traySwitch));
+        settings.Controls.Add(MakeToggleRow("Light theme", _themeSwitch));
 
         _status = new Label { Text = "Initializing...", Font = Theme.Muted, ForeColor = Theme.TextMuted, BackColor = Theme.Sidebar, Dock = DockStyle.Fill, AutoSize = false, Height = 60, TextAlign = ContentAlignment.TopLeft };
 
@@ -205,7 +296,8 @@ internal sealed partial class MainForm : Form
         _displayPage = BuildDisplayPage();
         _systemPage = BuildSystemPage();
         _gamePlusPage = BuildGamePlusPage();
-        foreach (var page in new[] { _systemPage, _gamePlusPage, _displayPage })
+        _tweakPage = BuildTweakPage();
+        foreach (var page in new[] { _systemPage, _gamePlusPage, _tweakPage, _displayPage })
         {
             page.Dock = DockStyle.Fill;
             page.Visible = page == _displayPage;
@@ -216,12 +308,13 @@ internal sealed partial class MainForm : Form
 
     private Label MakeNavItem(string text, Control page)
     {
+        var bg = page == _displayPage ? Theme.Accent : Theme.Sidebar;
         var l = new Label
         {
             Text = "  " + text,
             Font = Theme.Label,
-            ForeColor = Theme.White,
-            BackColor = page == _displayPage ? Theme.Accent : Theme.Sidebar,
+            ForeColor = Theme.ForeOn(bg),
+            BackColor = bg,
             Dock = DockStyle.Fill,
             Height = 30,
             TextAlign = ContentAlignment.MiddleLeft,
@@ -239,9 +332,10 @@ internal sealed partial class MainForm : Form
         foreach (var (nav, p) in _navItems)
         {
             nav.BackColor = p == page ? Theme.Accent : Theme.Sidebar;
+            nav.ForeColor = Theme.ForeOn(nav.BackColor);
             p.Visible = p == page;
         }
-        if (page != _displayPage) EnsureSystemLoaded();
+        if (page == _systemPage || page == _gamePlusPage) EnsureSystemLoaded();
     }
 
     private Control BuildDisplayPage()
@@ -263,7 +357,7 @@ internal sealed partial class MainForm : Form
             presetRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / PresetDefs.Length));
             var (name, glyph, val) = PresetDefs[i];
             var card = new PresetCard(name, char.ConvertFromUtf32(glyph), val) { Dock = DockStyle.Fill };
-            card.Clicked += SetPresetThread;
+            card.Clicked += v => SetPresetThread(v);
             _cards[val] = card;
             presetRow.Controls.Add(card, i, 0);
         }
@@ -437,27 +531,7 @@ internal sealed partial class MainForm : Form
         return row;
     }
 
-    private ComboBox MakeCombo()
-    {
-        var cb = new ComboBox
-        {
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            FlatStyle = FlatStyle.Flat,
-            BackColor = Theme.Trough,
-            ForeColor = Theme.White,
-            Font = Theme.Muted,
-            DrawMode = DrawMode.OwnerDrawFixed,
-        };
-        cb.DrawItem += (s, e) =>
-        {
-            if (e.Index < 0) return;
-            var combo = (ComboBox)s!;
-            bool sel = (e.State & DrawItemState.Selected) != 0;
-            using (var b = new SolidBrush(sel ? Theme.Accent : Theme.Trough)) e.Graphics.FillRectangle(b, e.Bounds);
-            TextRenderer.DrawText(e.Graphics, combo.Items[e.Index]?.ToString() ?? "", combo.Font, e.Bounds, Theme.White, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
-        };
-        return cb;
-    }
+    private ComboBox MakeCombo() => new ThemedCombo();
 
     private static Button MakeButton(string text, Color bg, Color hover)
     {
@@ -465,7 +539,7 @@ internal sealed partial class MainForm : Form
         {
             Text = text,
             Font = Theme.Label,
-            ForeColor = Theme.White,
+            ForeColor = Theme.ForeOn(bg),
             BackColor = bg,
             FlatStyle = FlatStyle.Flat,
             AutoSize = true,
@@ -580,18 +654,30 @@ internal sealed partial class MainForm : Form
             {
                 var list = Dwc.ParseList(Dwc.Run("list"));
                 if (list.Count == 0) { SetStatus("No monitors found. Check connection."); return; }
-                var vals = list.Select(m => $"{m.Id} - {m.Model}").ToArray();
                 Ui(() =>
                 {
+                    _monitors = list;
                     _updatingUi = true;
                     _monitorCombo.Items.Clear();
-                    _monitorCombo.Items.AddRange(vals);
+                    _monitorCombo.Items.AddRange(list.Select(m => $"{m.Id} - {m.Model}").ToArray());
                     _updatingUi = false;
                     _monitorCombo.SelectedIndex = 0; // fires OnMonitorSelected -> query
                 });
             }
             catch (Exception e) { SetStatus($"Error: {e.Message}"); }
         });
+    }
+
+    /// <summary>Repopulate the monitor combo after a rebuild, without re-querying the monitor.</summary>
+    private void RestoreMonitorList()
+    {
+        if (_monitors.Count == 0) return;
+        _updatingUi = true;
+        _monitorCombo.Items.Clear();
+        _monitorCombo.Items.AddRange(_monitors.Select(m => $"{m.Id} - {m.Model}").ToArray());
+        int idx = _monitors.FindIndex(m => m.Id == _selectedMonitorId);
+        _monitorCombo.SelectedIndex = idx >= 0 ? idx : 0;
+        _updatingUi = false;
     }
 
     private void OnMonitorSelected(object? sender, EventArgs e)
@@ -665,13 +751,17 @@ internal sealed partial class MainForm : Form
 
         _current = settings;
 
-        // Capture a baseline for presets we haven't seen yet.
-        if (newPreset.HasValue && !_presetMemory.ContainsKey(newPreset.Value))
+        // Capture a baseline for presets we haven't seen yet. While the app's own User preset
+        // is active the monitor still reports its base mode, so keep writing into User's slot.
+        int? memoryKey = _userPresetActive ? UserPresetCode : newPreset;
+        if (memoryKey.HasValue && !_presetMemory.ContainsKey(memoryKey.Value))
         {
             var d = new Dictionary<string, int>();
             foreach (var kv in settings)
                 if (kv.Value.HasValue && kv.Key != "Splendid") d[kv.Key] = kv.Value.Value;
-            _presetMemory[newPreset.Value] = d;
+            if (_userPresetActive && newPreset.HasValue) d[BaseModeKey] = newPreset.Value;
+            _presetMemory[memoryKey.Value] = d;
+            AppConfig.SavePresets(_presetMemory);
         }
 
         Ui(UpdateUiState);
@@ -710,14 +800,19 @@ internal sealed partial class MainForm : Form
         _isSyncing = false;
         SetStatus("Settings synchronized.");
 
-        var active = _current.GetValueOrDefault("Splendid");
-        foreach (var kv in _cards) kv.Value.SetActive(kv.Key == active);
-
+        UpdateActiveCard();
         RebuildTempOptions();
         UpdateRows(system: false);
 
         // Apply the schedule once the first real sync has populated the current preset.
         if (!_firstSyncDone) { _firstSyncDone = true; EvaluateSchedule(); }
+    }
+
+    /// <summary>Highlight the active tile — the User tile wins, since the monitor reports its base mode.</summary>
+    private void UpdateActiveCard()
+    {
+        int? active = _compareCard ?? (_userPresetActive ? UserPresetCode : _current.GetValueOrDefault("Splendid"));
+        foreach (var kv in _cards) kv.Value.SetActive(kv.Key == active);
     }
 
     /// <summary>Push the current values into every registered row of one page group.</summary>
@@ -825,7 +920,7 @@ internal sealed partial class MainForm : Form
         if (_isSyncing || _isComparing) return;
 
         _current[prop] = val;
-        var preset = _current.GetValueOrDefault("Splendid");
+        int? preset = _userPresetActive ? UserPresetCode : _current.GetValueOrDefault("Splendid");
         if (preset.HasValue)
         {
             if (!_presetMemory.TryGetValue(preset.Value, out var d)) { d = new(); _presetMemory[preset.Value] = d; }
@@ -841,19 +936,32 @@ internal sealed partial class MainForm : Form
         });
     }
 
-    private void SetPresetThread(int val)
+    /// <summary>
+    /// <paramref name="manual"/> is false for switches the app makes itself (per-app rules);
+    /// only a real pick may redefine what a per-app rule falls back to.
+    /// </summary>
+    private void SetPresetThread(int val, bool manual = true)
     {
         if (_selectedMonitorId == null) { SetStatus("Error: No monitor selected."); return; }
         if (_isSyncing || _isComparing) return;
 
         if (_currentPreset.HasValue && _currentPreset != val) { _previousPreset = _currentPreset; _currentPreset = val; }
+        _userPresetActive = val == UserPresetCode;
+        if (manual && _tweakApplied) _tweakBasePreset = val;
 
-        SetStatus($"Changing Splendid mode to {val}...");
+        SetStatus(val == UserPresetCode ? "Applying User preset..." : $"Changing Splendid mode to {val}...");
         _isSyncing = true;
         foreach (var c in _cards.Values) c.SetActive(false);
         if (_cards.TryGetValue(val, out var card)) card.SetActive(true);
 
         Task.Run(() => SetPreset(val));
+    }
+
+    /// <summary>The Splendid mode the User preset sits on top of (its own memory, else the current one).</summary>
+    private int UserBaseMode()
+    {
+        if (_presetMemory.TryGetValue(UserPresetCode, out var mem) && mem.TryGetValue(BaseModeKey, out int b)) return b;
+        return _current.GetValueOrDefault("Splendid") ?? 4;   // 4 = Standard
     }
 
     private void WritePropsParallel(Dictionary<string, int> props)
@@ -866,7 +974,8 @@ internal sealed partial class MainForm : Form
     {
         if (!_presetMemory.TryGetValue(val, out var saved) || saved.Count == 0) return;
 
-        var first = saved.Where(kv => !GainProps.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+        // BaseSplendid is bookkeeping for the User preset, not a monitor property.
+        var first = saved.Where(kv => kv.Key != BaseModeKey && !GainProps.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
         WritePropsParallel(first);
 
         var gains = saved.Where(kv => GainProps.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
@@ -881,7 +990,9 @@ internal sealed partial class MainForm : Form
     {
         try
         {
-            Dwc.Run("set", "Splendid", val.ToString(), "--id", _selectedMonitorId!);
+            // The User preset is ours, not the monitor's: put the panel in its base mode first.
+            int mode = val == UserPresetCode ? UserBaseMode() : val;
+            Dwc.Run("set", "Splendid", mode.ToString(), "--id", _selectedMonitorId!);
             Thread.Sleep(PresetTransitionMs);
             ApplyPresetSettingsParallel(val);
             QuerySettings();
@@ -900,6 +1011,7 @@ internal sealed partial class MainForm : Form
     {
         if (_selectedMonitorId == null || _isSyncing || !_previousPreset.HasValue) return;
         _isComparing = true;
+        _compareCard = _previousPreset;
         SetStatus("Comparing: Showing previous preset...");
         _compareBtn.BackColor = Theme.Accent;
         _compareBtn.Text = "Comparing...";
@@ -912,6 +1024,7 @@ internal sealed partial class MainForm : Form
     {
         if (_selectedMonitorId == null || !_isComparing) return;
         _isComparing = false;
+        _compareCard = null;
         SetStatus("Restoring current preset...");
         _compareBtn.BackColor = Theme.Card;
         _compareBtn.Text = "Compare Settings";
@@ -925,7 +1038,8 @@ internal sealed partial class MainForm : Form
     {
         try
         {
-            Dwc.Run("set", "Splendid", val.ToString(), "--id", _selectedMonitorId!);
+            int mode = val == UserPresetCode ? UserBaseMode() : val;
+            Dwc.Run("set", "Splendid", mode.ToString(), "--id", _selectedMonitorId!);
             Thread.Sleep(PresetTransitionMs);
             ApplyPresetSettingsParallel(val);
 
@@ -977,7 +1091,7 @@ internal sealed partial class MainForm : Form
         if (_isSyncing || _isComparing) return;    // busy — retry next tick without recording
 
         _lastScheduledPreset = desired;
-        if (_current.GetValueOrDefault("Splendid") == desired) return; // already in that preset
+        if (ActivePreset() == desired) return;                     // already in that preset
         if (!_cards.ContainsKey(desired.Value)) return;
 
         SetStatus($"Scheduled switch → {PresetName(desired.Value)}");
@@ -1006,7 +1120,7 @@ internal sealed partial class MainForm : Form
             try
             {
                 // The monitor forgets the tweaks, so drop the matching preset memory too.
-                if (kind == "reset-all") { _presetMemory.Clear(); AppConfig.SavePresets(_presetMemory); }
+                if (kind == "reset-all") { _presetMemory.Clear(); AppConfig.SavePresets(_presetMemory); _userPresetActive = false; }
                 else
                 {
                     var preset = _current.GetValueOrDefault("Splendid");

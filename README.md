@@ -5,20 +5,34 @@
 ![License](https://img.shields.io/badge/license-Apache%202.0-green)
 
 A small, fast, native Windows app for controlling ASUS monitor settings — Splendid
-presets, brightness/contrast/color, a system-tray icon, and automatic preset scheduling.
+presets, brightness/contrast/color, per-app preset switching, a system-tray icon, and
+automatic preset scheduling.
 
 This is a fork of [ASUS-Display/asus-display-control](https://github.com/ASUS-Display/asus-display-control),
 which ships a command-line tool (`dwc.exe`). This fork wraps that CLI in a lightweight
 WinForms GUI so you get a real control panel without ASUS DisplayWidget Center
 (~107 MB installed, ~60 MB RAM). The app is ~1.3 MB and idles around ~14 MB of RAM.
 
-<img src="image/screenshot.png" alt="ASUS Display Control" width="760">
+<img src="image/screenshot.png" alt="ASUS Display Control — dark theme" width="760">
+
+<details>
+<summary>Light theme &amp; Per-App Tweak</summary>
+
+<img src="image/screenshot-light.png" alt="ASUS Display Control — light theme" width="760">
+<img src="image/screenshot-tweak.png" alt="Per-App Tweak" width="760">
+
+</details>
 
 ## ✨ Features
 
 - **Splendid presets** (Standard, Reading, Theater, Scenery, Game, sRGB, Darkroom,
   Night View) with **per-preset memory** — tweak a preset's brightness/contrast/gains
   and they're restored whenever you return to it, with minimal switching flash.
+- A **User** preset the monitor doesn't have: it rides on top of a base Splendid mode
+  and keeps whatever you tune into it as your own profile.
+- **Per-App Tweak** — map an app to a preset (Chrome → Reading, a game → Game) and the
+  app in front picks the preset. When nothing matches, the preset you had is restored.
+- **Dark and light themes**, switchable from the sidebar.
 - Live **Brightness, Contrast, Trace Free, Sharpness, Saturation, Hue, RGB gains,
   RGB offsets, Shadow Boost, Blue Light Filter, ASCR**, and **Color Temp** (only shows
   the values your monitor actually supports).
