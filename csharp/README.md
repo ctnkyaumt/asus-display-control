@@ -7,8 +7,11 @@ CLI. Low memory, fast, flicker-free.
 
 - Four pages, picked from the sidebar: **Splendid** (picture), **System Setup**,
   **GamePlus & OSD**, and **Per-App Tweak**.
-- **Splendid presets** with per-preset memory — tweak a preset's brightness/contrast/
-  gains and it's restored next time you return to it, with minimal switch flash.
+- **Splendid presets** seeded with the app's own defaults per preset, then per-preset
+  memory — tweak a preset and it's restored next time you return to it, with minimal
+  switch flash.
+- **Single instance** (named mutex): two copies fight over the DDC bus and over each
+  other's preset switches.
 - A **User** preset that the hardware does not have: it applies a base Splendid mode and
   then the values you tuned into it (`BaseSplendid` in `dwc_presets.json`).
 - **Per-App Tweak** — a foreground-window watcher (1 s tick) maps a process name to a
@@ -40,19 +43,30 @@ CLI. Low memory, fast, flicker-free.
 Settings, presets, schedule and per-app rules live in `%APPDATA%\ASUSDisplayControl\`
 (`dwc_settings.json`, `dwc_presets.json`, `dwc_schedule.json`, `dwc_apptweaks.json`).
 
-## Preset memory vs. factory defaults
+## Preset defaults
 
-There is no built-in table of factory defaults — the app snapshots a preset's current
-values the first time it sees that preset and writes them back on every later switch. Two
-consequences worth knowing when reading the code:
+`MainForm.PresetDefaults` holds the app's own picture for each preset (see the table in
+the [root README](../README.md#-preset-defaults)). `SeedDefaults` writes them into
+`dwc_presets.json` the first time the user switches to a preset, or when they press
+**Preset Defaults**; after that the preset's own memory wins. Notes for reading the code:
 
-- Whatever the monitor happened to hold at first sight becomes that preset's baseline, so
-  a preset the user had already tuned is remembered tuned, not factory.
-- Which properties are genuinely per-preset is the panel's business. A VA24EHF keeps
-  brightness and colour temperature per Splendid mode (Standard 90/6500K, Reading 25/7500K,
-  Darkroom 0, Scenery and sRGB 100, contrast 80 throughout) but has a single global set of
-  RGB gains (factory 100/100/100); re-writing them per preset is what makes them feel
-  per-preset. `reset-mode` restores the mode but not colour — `reset-color` does that.
+- Only properties in `_supportedProps` for that monitor are written, so a panel without
+  Shadow Boost or saturation just gets the parts it understands.
+- Colour temperature is a *target Kelvin*. `SeedDefaults` picks the nearest code the
+  monitor advertises if it is within 750 K, otherwise it uses the User slot and warm RGB
+  gains — many panels stop at 6500 K, and calling that "warm" would make Reading and
+  Night View identical to Standard.
+- The monitor's own factory values (VA24EHF: Standard 90/6500 K, Reading 25/7500 K,
+  Darkroom 0, Scenery and sRGB 100, contrast 80 throughout, gains 100/100/100) are still
+  reachable through `reset-mode` / `reset-color` / `reset-all`; `reset-mode` restores the
+  mode but not colour.
+
+### The blue light filter locks Splendid
+
+With `BlueLightFilter > 0` an ASUS monitor **silently ignores** `set Splendid` — the write
+succeeds and nothing changes, which jams preset switching and the per-app watcher. So the
+filter is 0 in every default, `SetPreset` clears it before changing mode, and
+`ApplyPresetSettingsParallel` writes it last, after the rest of the picture.
 
 ## Run / develop
 

@@ -30,15 +30,16 @@ The sidebar switches between four pages.
 ### Splendid
 
 - **Presets** — Standard, Reading, Theater, Scenery, Game, sRGB, Darkroom, Night View,
-  each with **per-preset memory**: tune a preset and your values come back whenever you
-  return to it, with minimal switching flash.
+  each starting from [values that suit its name](#-preset-defaults) and then with
+  **per-preset memory**: tune a preset and your values come back whenever you return to
+  it, with minimal switching flash.
 - A **User** preset your monitor doesn't have. Splendid has no User slot, so this one is
   the app's: it sets a base Splendid mode and then applies the values you tuned into it.
 - **Brightness, Contrast, Trace Free, Sharpness, Shadow Boost, Blue Light Filter, ASCR,
   Saturation, Hue, RGB gains, RGB offsets** and **Color Temp** — the temperature list is
   built from what the monitor advertises, not from a fixed table.
-- **Compare** (press-and-hold to peek at the previous preset), **Reset Mode**, and
-  **Import/Export** profiles.
+- **Compare** (press-and-hold to peek at the previous preset), **Preset Defaults**,
+  **Reset Mode**, and **Import/Export** profiles.
 
 ### System Setup
 
@@ -69,23 +70,48 @@ name or pick one from the list of running apps.
 - Anything your monitor doesn't answer shows as *Unsupported* and is greyed out — see
   [What your monitor supports](#-what-your-monitor-supports).
 
-## 🎚️ Presets, your values, and factory defaults
+## 🎚️ Preset defaults
 
-The app does **not** carry a table of factory defaults. It reads your monitor.
+Out of the box, most monitors ship every Splendid mode looking nearly the same — a
+VA24EHF only varies brightness and colour temperature, so "Theater" and "Game" are the
+same picture. This app gives each preset values that match its name the first time you
+switch to it:
 
-- The first time it sees a preset it snapshots that preset's current values into
-  `dwc_presets.json`, and from then on it writes them back whenever you switch to it.
-  So the values a preset "returns to" are the ones the monitor had when the app first
-  met it — plus everything you changed since.
-- Which values are per-preset is the monitor's business, not the app's. On a VA24EHF,
-  for example, brightness and colour temperature really are per Splendid mode (Reading
-  is dim and warm, Darkroom is dark, sRGB is fixed) while the RGB gains are one global
-  set. Per-preset memory is what makes the gains *feel* per-preset.
-- To get a preset back to the monitor's own defaults, use **Reset Mode** — it clears that
-  preset's remembered values and asks the monitor to restore the mode. Note the monitor
-  treats colour separately: `Reset Mode` leaves colour temperature and RGB gains alone,
-  **Reset Color** is what restores those, and **Reset All** does everything (and clears
-  all remembered presets).
+| Preset | Brightness | Contrast | Colour | Other |
+|---|---|---|---|---|
+| **Standard** — daytime desk work | 55 | 80 | 6500K | Trace Free 60 |
+| **Reading** — long text sessions | 35 | 75 | ~5000K, saturation 40 | — |
+| **Theater** — film in a dim room | 60 | 80 | 6500K, saturation 60 | Shadow Boost 1, sharpness 55 |
+| **Scenery** — photos, bright content | 70 | 80 | 6500K, saturation 65 | sharpness 55 |
+| **Game** | 65 | 80 | 6500K, saturation 55 | Trace Free 80, Shadow Boost 2 |
+| **sRGB** — colour work (~120 nits) | 45 | 80 | 6500K, neutral | — |
+| **Darkroom** — lights off | 15 | 75 | ~5000K | Shadow Boost 1 |
+| **Night View** — late night | 20 | 75 | ~4000K, saturation 45 | Shadow Boost 2 |
+
+Where those numbers come from: 40–60% brightness is the usual advice for daytime desk
+work and 15–25% for a dark room (roughly 100–150 nits vs 80–100 nits); contrast stays at
+or just below the panel's calibrated default; 6500K/D65 is the standard everything is
+mastered at; Trace Free 60 is the ghosting-vs-overshoot compromise, with 80 in Game where
+response matters more than a faint corona; and ASCR stays off because dynamic contrast
+pumps the backlight. Warm presets ask for a colour temperature the monitor may not have —
+if it stops at 6500K, the app uses the User slot and pulls green and blue down instead.
+
+Only properties your monitor answers are written, so a panel without Shadow Boost or
+saturation simply gets the parts it understands.
+
+**These are starting points, not rules.** Change anything and it is remembered for that
+preset from then on. Two buttons undo things:
+
+- **Preset Defaults** — throw away your values for the current preset and put the app's
+  defaults back.
+- **Reset Mode** — hand the preset back to the monitor's own factory values instead.
+  Note that ASUS treats colour separately: `Reset Mode` leaves colour temperature and RGB
+  gains alone, **Reset Color** restores those, and **Reset All** does everything (and
+  clears every remembered preset).
+
+> **Blue light filter:** while it is on, ASUS monitors refuse to change Splendid mode —
+> silently. The app therefore keeps it off in the defaults and switches it off before
+> changing preset, then restores whatever the target preset remembers.
 
 ## 🔍 What your monitor supports
 

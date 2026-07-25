@@ -37,6 +37,57 @@ internal sealed partial class MainForm : Form
     public const int UserPresetCode = 100;
     private const string BaseModeKey = "BaseSplendid";
 
+    /// <summary>
+    /// What the app thinks each preset should look like, since monitors ship every mode at
+    /// roughly the same picture (a VA24EHF only varies brightness and colour temperature).
+    /// Values are the 0-100 scale the CLI uses; <c>kelvin</c> is a target, resolved to the
+    /// nearest colour-temperature code the monitor actually advertises.
+    ///
+    /// Rationale: ~40-60% brightness for daytime desk work and 15-25% for a dark room
+    /// (100-150 nits vs 80-100 nits), contrast left near the panel's calibrated default,
+    /// 6500K/D65 for anything colour-critical, warmth for evening presets from colour
+    /// temperature (see <see cref="SeedDefaults"/>), Trace Free 60 as the ghosting/overshoot
+    /// compromise (80 in Game, where response matters more than a faint corona), and ASCR
+    /// off everywhere because dynamic contrast pumps the backlight.
+    ///
+    /// The blue light filter is deliberately 0 in every preset: ASUS monitors lock Splendid
+    /// mode switching while it is on, which would jam the whole app.
+    /// </summary>
+    private static readonly Dictionary<int, (int kelvin, (string prop, int value)[] props)> PresetDefaults = new()
+    {
+        // Standard — daytime desk work.
+        [4] = (6500, new[] { ("Brightness", 55), ("Contrast", 80), ("BlueLightFilter", 0), ("Overdrive", 60),
+                             ("ShadowBoost", 0), ("Saturation", 50), ("Sharpness", 50), ("ASCR", 0) }),
+        // Reading — long text sessions: dimmer, warmer, calmer colour.
+        [7] = (5000, new[] { ("Brightness", 35), ("Contrast", 75), ("BlueLightFilter", 0), ("Overdrive", 60),
+                             ("ShadowBoost", 0), ("Saturation", 40), ("Sharpness", 50), ("ASCR", 0) }),
+        // Theater — film in a dim room: a little punch, shadow detail lifted.
+        [1] = (6500, new[] { ("Brightness", 60), ("Contrast", 80), ("BlueLightFilter", 0), ("Overdrive", 60),
+                             ("ShadowBoost", 1), ("Saturation", 60), ("Sharpness", 55), ("ASCR", 0) }),
+        // Scenery — photos and bright content.
+        [2] = (6500, new[] { ("Brightness", 70), ("Contrast", 80), ("BlueLightFilter", 0), ("Overdrive", 60),
+                             ("ShadowBoost", 0), ("Saturation", 65), ("Sharpness", 55), ("ASCR", 0) }),
+        // Game — responsive, dark corners visible.
+        [5] = (6500, new[] { ("Brightness", 65), ("Contrast", 80), ("BlueLightFilter", 0), ("Overdrive", 80),
+                             ("ShadowBoost", 2), ("Saturation", 55), ("Sharpness", 50), ("ASCR", 0) }),
+        // sRGB — colour work: ~120 nits, nothing "enhanced".
+        [3] = (6500, new[] { ("Brightness", 45), ("Contrast", 80), ("BlueLightFilter", 0), ("Overdrive", 60),
+                             ("ShadowBoost", 0), ("Saturation", 50), ("Sharpness", 50), ("ASCR", 0) }),
+        // Darkroom — lights off.
+        [8] = (5000, new[] { ("Brightness", 15), ("Contrast", 75), ("BlueLightFilter", 0), ("Overdrive", 60),
+                             ("ShadowBoost", 1), ("Saturation", 50), ("Sharpness", 50), ("ASCR", 0) }),
+        // Night View — late night: warmest, dimmest, dark detail lifted.
+        [6] = (4000, new[] { ("Brightness", 20), ("Contrast", 75), ("BlueLightFilter", 0), ("Overdrive", 60),
+                             ("ShadowBoost", 2), ("Saturation", 45), ("Sharpness", 50), ("ASCR", 0) }),
+        // User — starts as Standard and becomes whatever you tune.
+        [UserPresetCode] = (6500, new[] { ("Brightness", 55), ("Contrast", 80), ("BlueLightFilter", 0), ("Overdrive", 60),
+                                          ("ShadowBoost", 0), ("Saturation", 50), ("Sharpness", 50), ("ASCR", 0) }),
+    };
+
+    /// <summary>Colour temperature codes and their Kelvin, for resolving a default's target.</summary>
+    private static readonly (int code, int kelvin)[] TempKelvin =
+        { (3, 4000), (4, 5000), (5, 6500), (6, 7500), (7, 8200), (8, 9300), (9, 10000) };
+
     private static readonly (string name, int glyph, int val)[] PresetDefs =
     {
         ("Standard", 0xE7F4, 4), ("Reading", 0xE82F, 7), ("Theater", 0xE8B2, 1),
@@ -412,31 +463,40 @@ internal sealed partial class MainForm : Form
 
     private Control BuildActions()
     {
-        var bar = new Panel { Dock = DockStyle.Fill, Height = 44, BackColor = Theme.Main, Margin = new Padding(0, 12, 0, 0) };
+        // Two columns rather than Dock Left/Right: with six buttons the docked panels used to
+        // overlap on a narrow window and swallow the right-hand ones.
+        var bar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, AutoSize = true, BackColor = Theme.Main, Margin = new Padding(0, 12, 0, 0) };
+        bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-        var left = new FlowLayoutPanel { Dock = DockStyle.Left, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoSize = true, BackColor = Theme.Main };
+        var left = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoSize = true, BackColor = Theme.Main };
+        var defaults = MakeButton("Defaults", Theme.Card, Theme.CardHover);
+        defaults.Click += (_, _) => RestoreDefaultsThread();
         var reset = MakeButton("Reset Mode", Theme.Card, Theme.CardHover);
         reset.Click += (_, _) => ResetThread("reset-mode", "Reset Mode",
-            "Reset the current Splendid mode to its factory defaults?");
-        _compareBtn = MakeButton("Compare Settings", Theme.Card, Theme.Accent);
+            "Reset the current Splendid mode to the monitor's own factory defaults?\n\n" +
+            "This also clears the values this app remembers for the preset.");
+        _compareBtn = MakeButton("Compare", Theme.Card, Theme.Accent);
         _compareBtn.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) StartCompare(); };
         _compareBtn.MouseUp += (_, e) => { if (e.Button == MouseButtons.Left) StopCompare(); };
         var scheduleBtn = MakeButton("Schedule…", Theme.Card, Theme.CardHover);
         scheduleBtn.Click += (_, _) => OpenSchedule();
+        left.Controls.Add(defaults);
         left.Controls.Add(reset);
         left.Controls.Add(_compareBtn);
         left.Controls.Add(scheduleBtn);
 
-        var right = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoSize = true, BackColor = Theme.Main };
-        var import = MakeButton("Import Profile", Theme.Card, Theme.CardHover);
+        var right = new FlowLayoutPanel { Anchor = AnchorStyles.Right, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoSize = true, BackColor = Theme.Main };
+        var import = MakeButton("Import", Theme.Card, Theme.CardHover);
         import.Click += (_, _) => ImportProfile();
-        var export = MakeButton("Export Profile", Theme.Accent, Theme.AccentDark);
+        var export = MakeButton("Export", Theme.Accent, Theme.AccentDark);
+        export.Margin = new Padding(0);
         export.Click += (_, _) => ExportProfile();
         right.Controls.Add(import);
         right.Controls.Add(export);
 
-        bar.Controls.Add(left);
-        bar.Controls.Add(right);
+        bar.Controls.Add(left, 0, 0);
+        bar.Controls.Add(right, 1, 0);
         return bar;
     }
 
@@ -931,7 +991,13 @@ internal sealed partial class MainForm : Form
         SetStatus($"Updating {prop} to {val}...");
         Task.Run(() =>
         {
-            try { Dwc.Run("set", prop, val.ToString(), "--id", _selectedMonitorId!); SetStatus($"{prop} updated successfully."); }
+            try
+            {
+                Dwc.Run("set", prop, val.ToString(), "--id", _selectedMonitorId!);
+                SetStatus(prop == "BlueLightFilter" && val > 0
+                    ? "Blue Light Filter on — the monitor locks preset switching until it is off. Switching a preset turns it off again."
+                    : $"{prop} updated successfully.");
+            }
             catch (Exception e) { SetStatus($"Error updating {prop}: {e.Message}"); }
         });
     }
@@ -957,6 +1023,82 @@ internal sealed partial class MainForm : Form
         Task.Run(() => SetPreset(val));
     }
 
+    /// <summary>
+    /// Give a preset the app's tuned values. Runs the first time you switch to a preset (and
+    /// from the "Preset Defaults" button); after that the preset's own memory wins, so anything
+    /// you change sticks. Only properties this monitor answers are written.
+    /// </summary>
+    private void SeedDefaults(int preset)
+    {
+        var mId = _selectedMonitorId;
+        if (mId == null || !PresetDefaults.TryGetValue(preset, out var def)) return;
+        if (!_supportedProps.TryGetValue(mId, out var supported)) return;   // not probed yet
+
+        var values = new Dictionary<string, int>();
+        foreach (var (prop, value) in def.props)
+            if (supported.Contains(prop)) values[prop] = value;
+
+        // Colour temperature. Prefer a fixed code the monitor advertises, but only if it is
+        // close enough to the target — plenty of panels stop at 6500K, and calling that
+        // "warm" would make Reading and Night View identical to Standard. In that case use
+        // the User slot and pull green/blue down instead, which every monitor can do.
+        if (supported.Contains("ColorTemp"))
+        {
+            var codes = _supportedTemps.GetValueOrDefault(mId) ?? TempKelvin.Select(t => t.code).ToList();
+            var candidates = TempKelvin.Where(t => codes.Contains(t.code))
+                                       .OrderBy(t => Math.Abs(t.kelvin - def.kelvin))
+                                       .ToList();
+            bool closeEnough = candidates.Count > 0 && Math.Abs(candidates[0].kelvin - def.kelvin) <= 750;
+
+            if (closeEnough)
+            {
+                values["ColorTemp"] = candidates[0].code;
+            }
+            else if (codes.Contains(11))
+            {
+                values["ColorTemp"] = 11;
+                var (green, blue) = def.kelvin >= 6500 ? (100, 100)
+                                  : def.kelvin >= 5000 ? (95, 88)
+                                  : (90, 78);
+                foreach (var (g, v) in new[] { ("RedGain", 100), ("GreenGain", green), ("BlueGain", blue) })
+                    if (supported.Contains(g)) values[g] = v;
+            }
+            else if (candidates.Count > 0)
+            {
+                values["ColorTemp"] = candidates[0].code;
+            }
+        }
+
+        if (preset == UserPresetCode) values[BaseModeKey] = _current.GetValueOrDefault("Splendid") ?? 4;
+        if (values.Count == 0) return;
+
+        _presetMemory[preset] = values;
+        AppConfig.SavePresets(_presetMemory);
+    }
+
+    /// <summary>Throw away a preset's remembered values and put the app's defaults back.</summary>
+    private void RestoreDefaultsThread()
+    {
+        if (_selectedMonitorId == null) { SetStatus("Error: No monitor selected."); return; }
+        if (_isSyncing || _isComparing) return;
+
+        int? preset = ActivePreset();
+        if (!preset.HasValue || !PresetDefaults.ContainsKey(preset.Value)) return;
+        if (MessageBox.Show(this,
+                $"Replace your saved values for {PresetName(preset.Value)} with the app's defaults for that preset?",
+                "Preset Defaults", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+
+        _presetMemory.Remove(preset.Value);
+        _isSyncing = true;
+        SetStatus($"Applying {PresetName(preset.Value)} defaults...");
+        Task.Run(() =>
+        {
+            SeedDefaults(preset.Value);
+            ApplyPresetSettingsParallel(preset.Value);
+            QuerySettings();
+        });
+    }
+
     /// <summary>The Splendid mode the User preset sits on top of (its own memory, else the current one).</summary>
     private int UserBaseMode()
     {
@@ -975,7 +1117,9 @@ internal sealed partial class MainForm : Form
         if (!_presetMemory.TryGetValue(val, out var saved) || saved.Count == 0) return;
 
         // BaseSplendid is bookkeeping for the User preset, not a monitor property.
-        var first = saved.Where(kv => kv.Key != BaseModeKey && !GainProps.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+        // BlueLightFilter goes last: while it is on, the monitor locks the rest of the picture.
+        var first = saved.Where(kv => kv.Key != BaseModeKey && kv.Key != "BlueLightFilter" && !GainProps.Contains(kv.Key))
+                         .ToDictionary(kv => kv.Key, kv => kv.Value);
         WritePropsParallel(first);
 
         var gains = saved.Where(kv => GainProps.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
@@ -984,16 +1128,31 @@ internal sealed partial class MainForm : Form
             if (first.ContainsKey("ColorTemp")) Thread.Sleep(PresetGainMs);
             WritePropsParallel(gains);
         }
+
+        if (saved.TryGetValue("BlueLightFilter", out int blf))
+            WritePropsParallel(new Dictionary<string, int> { ["BlueLightFilter"] = blf });
     }
 
     private void SetPreset(int val)
     {
         try
         {
+            // ASUS monitors ignore a Splendid change while the blue light filter is on — and
+            // they ignore it silently, the write "succeeds". Drop the filter first; the preset
+            // being applied puts back whatever value it remembers.
+            if ((_current.GetValueOrDefault("BlueLightFilter") ?? 0) > 0)
+            {
+                try { Dwc.Run("set", "BlueLightFilter", "0", "--id", _selectedMonitorId!); Thread.Sleep(PresetTransitionMs); }
+                catch { }
+            }
+
             // The User preset is ours, not the monitor's: put the panel in its base mode first.
             int mode = val == UserPresetCode ? UserBaseMode() : val;
             Dwc.Run("set", "Splendid", mode.ToString(), "--id", _selectedMonitorId!);
             Thread.Sleep(PresetTransitionMs);
+            // First visit to this preset: start from the app's tuned defaults rather than
+            // whatever the monitor happens to ship the mode with.
+            if (!_presetMemory.ContainsKey(val)) SeedDefaults(val);
             ApplyPresetSettingsParallel(val);
             QuerySettings();
         }
@@ -1027,7 +1186,7 @@ internal sealed partial class MainForm : Form
         _compareCard = null;
         SetStatus("Restoring current preset...");
         _compareBtn.BackColor = Theme.Card;
-        _compareBtn.Text = "Compare Settings";
+        _compareBtn.Text = "Compare";
         foreach (var c in _cards.Values) c.SetActive(false);
         if (_currentPreset.HasValue && _cards.TryGetValue(_currentPreset.Value, out var card)) card.SetActive(true);
         _isSyncing = true;
