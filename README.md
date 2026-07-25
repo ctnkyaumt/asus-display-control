@@ -160,7 +160,8 @@ The app appears in `csharp/publish/`. Run `ASUS-Display-Control.exe`. See
 | `dwc_apptweaks.json` | Per-App Tweak rules |
 
 Deleting a file resets that part of the app; nothing else is written anywhere except the
-`Start with Windows` entry under `HKCU\...\CurrentVersion\Run`.
+`Start with Windows` entry under `HKCU\...\CurrentVersion\Run`. Uninstalling asks whether
+to delete this folder — answer *No* to keep your presets for a future install.
 
 ## ⌨️ Command line (optional)
 

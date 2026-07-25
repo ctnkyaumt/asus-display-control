@@ -7,7 +7,7 @@
 ; Version override from CI:  iscc /DAppVersion=1.2.3 csharp\installer.iss
 
 #ifndef AppVersion
-  #define AppVersion "2.2.0"
+  #define AppVersion "2.2.1"
 #endif
 #define AppName "ASUS Display Control"
 #define AppPublisher "ctnkyaumt"
@@ -58,5 +58,22 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
-[UninstallDelete]
-Type: filesandordirs; Name: "{userappdata}\ASUSDisplayControl"
+[Code]
+{ Uninstalling used to delete %APPDATA%\ASUSDisplayControl outright, taking the user's
+  presets, schedule and per-app rules with it — including on a reinstall. Ask instead.
+  A silent uninstall keeps the data (SuppressibleMsgBox falls back to the IDNO default). }
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  DataDir: String;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    DataDir := ExpandConstant('{userappdata}\ASUSDisplayControl');
+    if DirExists(DataDir) then
+      if SuppressibleMsgBox('Also delete your saved presets, schedule, per-app rules and settings?'
+                            + #13#10 + #13#10 + DataDir
+                            + #13#10 + #13#10 + 'Choose No to keep them for a future install.',
+                            mbConfirmation, MB_YESNO, IDNO) = IDYES then
+        DelTree(DataDir, True, True, True);
+  end;
+end;
