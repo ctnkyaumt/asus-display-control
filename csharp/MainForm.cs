@@ -182,9 +182,10 @@ internal sealed partial class MainForm : Form
         ApplyTitleBarTheme();
         DetectMonitors();
 
-        // Re-check the schedule every minute (switches are applied on the UI thread).
+        // Re-check the schedule every minute (switches are applied on the UI thread), and keep
+        // the footprint down while the app sits in the tray.
         _scheduleTimer = new System.Windows.Forms.Timer { Interval = 60_000 };
-        _scheduleTimer.Tick += (_, _) => EvaluateSchedule();
+        _scheduleTimer.Tick += (_, _) => { EvaluateSchedule(); if (!Visible) TrimMemory(); };
         _scheduleTimer.Start();
 
         // Watch the foreground window for per-app preset rules.
@@ -656,6 +657,23 @@ internal sealed partial class MainForm : Form
     {
         Hide();
         SetStatus("Minimized to tray. Right-click the tray icon to exit.");
+        TrimMemory();
+    }
+
+    /// <summary>
+    /// Collect and hand the working set back to Windows. Worth doing when the window goes
+    /// away: nothing is being drawn, so the pages behind the UI are dead weight until the
+    /// user opens it again, and Windows pages them back in on demand.
+    /// </summary>
+    private static void TrimMemory()
+    {
+        try
+        {
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            GC.WaitForPendingFinalizers();
+            Native.EmptyWorkingSet(Native.GetCurrentProcess());
+        }
+        catch { }
     }
 
     private void RealExit()
@@ -865,7 +883,12 @@ internal sealed partial class MainForm : Form
         UpdateRows(system: false);
 
         // Apply the schedule once the first real sync has populated the current preset.
-        if (!_firstSyncDone) { _firstSyncDone = true; EvaluateSchedule(); }
+        if (!_firstSyncDone)
+        {
+            _firstSyncDone = true;
+            EvaluateSchedule();
+            TrimMemory();     // drop the startup churn (probing, JIT, layout) once we are idle
+        }
     }
 
     /// <summary>Highlight the active tile — the User tile wins, since the monitor reports its base mode.</summary>

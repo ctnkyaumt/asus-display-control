@@ -11,7 +11,8 @@ tray icon — in about 1.3 MB.
 This is a fork of [ASUS-Display/asus-display-control](https://github.com/ASUS-Display/asus-display-control),
 which ships a command-line tool (`dwc.exe`). This fork wraps that CLI in a lightweight
 WinForms GUI so you get a real control panel without ASUS DisplayWidget Center
-(~107 MB installed, ~60 MB RAM). The app is ~1.3 MB and idles around ~14 MB of RAM.
+(~107 MB installed, ~60 MB RAM). The app is ~1.3 MB and, sitting in the tray, holds about
+4 MB of working set and 12 MB of private memory.
 
 <img src="image/screenshot.png" alt="ASUS Display Control — dark theme" width="760">
 
@@ -57,8 +58,9 @@ QuickFit — without reaching behind the panel.
 ### Per-App Tweak
 
 Map an app to a preset (Chrome → Reading, a game → Game). The app in the foreground picks
-the preset; when nothing matches, the preset you had before is restored. Type a process
-name or pick one from the list of running apps.
+the preset; when nothing matches, the preset you had before is restored. Pick from the list
+of running apps, type a process name, or **Browse…** to the program's `.exe` — handy for
+something that isn't running yet.
 
 ### Everywhere
 

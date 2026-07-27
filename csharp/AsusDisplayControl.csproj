@@ -9,7 +9,7 @@
     <RootNamespace>AsusDisplayControl</RootNamespace>
     <AssemblyName>ASUS-Display-Control</AssemblyName>
     <ApplicationIcon>icon.ico</ApplicationIcon>
-    <Version>2.2.1</Version>
+    <Version>2.2.2</Version>
     <Product>ASUS Display Control</Product>
     <Company>ctnkyaumt</Company>
     <Deterministic>true</Deterministic>
@@ -17,11 +17,23 @@
          passed at publish time (see build.ps1) so plain `dotnet build`/`run` stay fast. -->
     <PublishTrimmed>false</PublishTrimmed>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <!-- Low-memory tuning: workstation GC + concurrent, drop ICU globalization data. -->
+    <!-- Low-memory tuning. The heap here is tiny and the app is idle most of the time, so
+         workstation GC without a background collector is both smaller and sufficient; ICU
+         and EventSource are dead weight for a monitor control panel. -->
     <ServerGarbageCollection>false</ServerGarbageCollection>
-    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <EventSourceSupport>false</EventSourceSupport>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Keep the GC frugal rather than fast: it may return memory to the OS eagerly and
+         should not hold on to virtual memory it no longer needs. -->
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
+    <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- App icon, embedded so the form + tray can load it at runtime. -->

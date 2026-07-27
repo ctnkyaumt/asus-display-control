@@ -14,9 +14,10 @@ CLI. Low memory, fast, flicker-free.
   other's preset switches.
 - A **User** preset that the hardware does not have: it applies a base Splendid mode and
   then the values you tuned into it (`BaseSplendid` in `dwc_presets.json`).
-- **Per-App Tweak** — a foreground-window watcher (1 s tick) maps a process name to a
-  preset and restores the previous preset when no rule matches. Rules live in
-  `dwc_apptweaks.json`.
+- **Per-App Tweak** — a foreground-window watcher (1 s tick, `QueryFullProcessImageName`
+  rather than a `Process` object per tick) maps a process name to a preset and restores the
+  previous preset when no rule matches. Pick a running app, type a name, or browse to an
+  `.exe`. Rules live in `dwc_apptweaks.json`.
 - **Dark / light theme**, toggled in the sidebar. Controls capture palette colours when
   they are built, so switching rebuilds the control tree and pushes the cached values back.
 - Live **Brightness, Contrast, Trace Free, Sharpness, Saturation, Hue, RGB gains,
@@ -93,8 +94,14 @@ Output goes to `csharp/publish/`. Installer: install
 | | Install size | Working set | Private bytes |
 |---|---|---|---|
 | ASUS DisplayWidgetCenter (original) | ~107 MB | — | ~60 MB |
-| C# framework-dependent (default) | **~1.3 MB** | ~50 MB | **~14 MB** |
-| C# self-contained (`-SelfContained`) | ~145 MB | ~50 MB | ~14 MB |
+| C# framework-dependent (default) | **~1.3 MB** | ~21 MB open, **~4 MB** in tray | ~13 MB open, **~12 MB** in tray |
+| C# self-contained (`-SelfContained`) | ~145 MB | same | same |
+
+Measured on a VA24EHF, sampled ~20 s after launch and ~80 s after closing to tray. Getting
+there took: non-concurrent workstation GC (no background collector for a heap this small),
+`System.GC.ConserveMemory=5` with `RetainVM=false`, invariant globalization, no EventSource,
+and a `GC.Collect` + `EmptyWorkingSet` when the window is hidden and once a minute while it
+stays hidden. Windows pages the working set back in when you open the window again.
 
 Default is **framework-dependent**: a few MB, but the PC needs the
 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) (Windows will

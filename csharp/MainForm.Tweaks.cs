@@ -17,8 +17,23 @@ internal static class Native
     [DllImport("user32.dll")]
     public static extern int GetWindowThreadProcessId(IntPtr hwnd, out int pid);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    public static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int count);
+    public const int ProcessQueryLimitedInformation = 0x1000;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr OpenProcess(int access, bool inheritHandle, int pid);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern bool QueryFullProcessImageName(IntPtr process, int flags, StringBuilder name, ref int size);
+
+    [DllImport("kernel32.dll")]
+    public static extern bool CloseHandle(IntPtr handle);
+
+    /// <summary>Hand the working set back to Windows; it is paged in again on demand.</summary>
+    [DllImport("psapi.dll")]
+    public static extern bool EmptyWorkingSet(IntPtr process);
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetCurrentProcess();
 }
 
 /// <summary>
@@ -55,7 +70,8 @@ internal sealed partial class MainForm
         top.Controls.Add(new Label
         {
             Text = "Switch the preset automatically for the app you are using. When the app in front " +
-                   "matches no rule, the preset you had before is restored.",
+                   "matches no rule, the preset you had before is restored. Pick a running app from the " +
+                   "list, type a process name, or Browse… to an .exe.",
             Font = Theme.Muted,
             ForeColor = Theme.TextMuted,
             BackColor = Theme.Main,
@@ -121,7 +137,7 @@ internal sealed partial class MainForm
     {
         var row = new TableLayoutPanel
         {
-            ColumnCount = 3,
+            ColumnCount = 4,
             RowCount = 1,
             Dock = DockStyle.Top,
             Height = 38,
@@ -129,6 +145,7 @@ internal sealed partial class MainForm
             Margin = new Padding(0, 0, 0, 6),
         };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
@@ -144,6 +161,20 @@ internal sealed partial class MainForm
         {
             rule.Process = app.Text.Trim();
             AppConfig.SaveTweaks(_tweaks);
+        };
+
+        // …for an app that isn't running (and won't be in the list): pick its .exe.
+        var browse = MakeButton("Browse…", Theme.Card, Theme.CardHover);
+        browse.Margin = new Padding(0, 3, 8, 3);
+        browse.Click += (_, _) =>
+        {
+            using var dlg = new OpenFileDialog
+            {
+                Title = "Pick the application's .exe",
+                Filter = "Programs (*.exe)|*.exe|All files (*.*)|*.*",
+            };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            app.Text = Path.GetFileNameWithoutExtension(dlg.FileName);   // that is what the OS reports
         };
 
         var preset = MakeCombo();
@@ -172,8 +203,9 @@ internal sealed partial class MainForm
         };
 
         row.Controls.Add(app, 0, 0);
-        row.Controls.Add(preset, 1, 0);
-        row.Controls.Add(remove, 2, 0);
+        row.Controls.Add(browse, 1, 0);
+        row.Controls.Add(preset, 2, 0);
+        row.Controls.Add(remove, 3, 0);
         _tweakList.Controls.Add(row);
         _tweakList.Controls.SetChildIndex(row, 0);   // newest on top of the docked stack
         _tweakRows.Add((rule, row));
@@ -182,9 +214,11 @@ internal sealed partial class MainForm
     /// <summary>Process names of everything with a visible window, e.g. "chrome", "code".</summary>
     private static string[] RunningApps()
     {
+        var processes = Array.Empty<Process>();
         try
         {
-            return Process.GetProcesses()
+            processes = Process.GetProcesses();
+            return processes
                 .Where(p => p.MainWindowHandle != IntPtr.Zero && p.ProcessName.Length > 0)
                 .Select(p => p.ProcessName)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -192,6 +226,7 @@ internal sealed partial class MainForm
                 .ToArray();
         }
         catch { return Array.Empty<string>(); }
+        finally { foreach (var p in processes) p.Dispose(); }
     }
 
     private void SetTweakStatus()
@@ -206,18 +241,27 @@ internal sealed partial class MainForm
     // ==========================================================================
     // WATCHER
     // ==========================================================================
+    // Reused by the once-a-second lookup so the watcher allocates nothing per tick.
+    private static readonly StringBuilder ImageNameBuffer = new(512);
+
     private static string? ForegroundProcessName()
     {
+        var hwnd = Native.GetForegroundWindow();
+        if (hwnd == IntPtr.Zero) return null;
+        Native.GetWindowThreadProcessId(hwnd, out int pid);
+        if (pid <= 0) return null;
+
+        // Win32 rather than System.Diagnostics.Process: a Process object per tick is pure
+        // garbage, and this path also works for processes we may not fully open.
+        var handle = Native.OpenProcess(Native.ProcessQueryLimitedInformation, false, pid);
+        if (handle == IntPtr.Zero) return null;
         try
         {
-            var hwnd = Native.GetForegroundWindow();
-            if (hwnd == IntPtr.Zero) return null;
-            Native.GetWindowThreadProcessId(hwnd, out int pid);
-            if (pid <= 0) return null;
-            using var p = Process.GetProcessById(pid);
-            return p.ProcessName;
+            int size = ImageNameBuffer.Capacity;
+            if (!Native.QueryFullProcessImageName(handle, 0, ImageNameBuffer, ref size)) return null;
+            return Path.GetFileNameWithoutExtension(ImageNameBuffer.ToString(0, size));
         }
-        catch { return null; }
+        finally { Native.CloseHandle(handle); }
     }
 
     /// <summary>Runs on the UI thread once a second.</summary>
